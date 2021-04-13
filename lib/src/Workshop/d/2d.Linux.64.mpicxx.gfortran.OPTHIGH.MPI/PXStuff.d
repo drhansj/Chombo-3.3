@@ -1,0 +1,4 @@
+/home/robertm/Projects/plasmac/Chombo/lib/src/Workshop/../../libworkshop2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI.a(PXStuff.o) d/2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI/PXStuff.d : /home/robertm/Projects/plasmac/Chombo/lib/src/Workshop/../../src/BaseTools/NamespaceFooter.H
+/home/robertm/Projects/plasmac/Chombo/lib/src/Workshop/../../libworkshop2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI.a(PXStuff.o) d/2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI/PXStuff.d : PXStuff.H
+/home/robertm/Projects/plasmac/Chombo/lib/src/Workshop/../../libworkshop2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI.a(PXStuff.o) d/2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI/PXStuff.d : PXStuff.cpp
+/home/robertm/Projects/plasmac/Chombo/lib/src/Workshop/../../libworkshop2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI.a(PXStuff.o) d/2d.Linux.64.mpicxx.gfortran.OPTHIGH.MPI/PXStuff.d : /home/robertm/Projects/plasmac/Chombo/lib/src/Workshop/../../src/BaseTools/NamespaceHeader.H
