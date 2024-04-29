@@ -23,10 +23,6 @@
 #include "Misc.H"
 #include <functional>
 
-#ifdef USE_PROTO
-#include "Proto.H"
-#endif
-
 namespace BLfacade
 {
   class IntVect;
@@ -119,14 +115,14 @@ public:
      Returns a modifiable lvalue reference to the <i>i</i>'th coordinate of the
      IntVect.
   */
-  inline
+  inline constexpr
   int& operator[] (int i);
 
   ///
   /**
      Returns the <i>i</i>'th coordinate of the IntVect.
   */
-  inline
+  inline constexpr
   int operator[] (int i) const;
 
   ///
@@ -238,7 +234,7 @@ public:
      in 3-D:<br>
      (iv1[0] < iv2[0]) || (iv1[0]==iv2[0] && ((iv1[1] < iv2[1] || ((iv1[1] == iv2[1]) && (iv1[2] < iv2[2])))));
   */
-  bool lexLT (const IntVect& s) const;
+  constexpr bool lexLT (const IntVect& s) const;
 
   ///
   /**
@@ -673,21 +669,6 @@ public:
 
   inline uint64_t hash(const IntVect& origin, const IntVect& blockingFactor) const; 
 
-#ifdef USE_PROTO
-    IntVect(Proto::Point a_pt)
-    {
-        for (int ii = 0; ii < DIM; ii++)
-        {
-            vect[ii] = a_pt[ii];
-        }
-    }
-
-    operator Proto::Point() const
-    {
-        return Proto::Point(vect);
-    }
-#endif
-
 protected:
   //
   // Box is a friend of ours.
@@ -715,8 +696,16 @@ protected:
 };
 #include "NamespaceFooter.H"
 
+
+#if CXXSTD>=14
+// C++14 version
+namespace std { template <> inline constexpr bool less<CH_XD::IntVect>::operator()(const CH_XD::IntVect& a, const CH_XD::IntVect& b) const { return a.lexLT(b);}
+}
+#else
 namespace std { template <> inline bool less<CH_XD::IntVect>::operator()(const CH_XD::IntVect& a, const CH_XD::IntVect& b) const { return a.lexLT(b);}
 }
+#endif
+
 #include "BaseNamespaceHeader.H"
 
 #include "NamespaceVar.H"
@@ -811,7 +800,7 @@ IntVect::IntVect (const int *a)
 //}
 
 inline
-int&
+constexpr int&
 IntVect::operator[] (int i)
 {
   CH_assert(i>=0 && i < SpaceDim);
@@ -819,7 +808,7 @@ IntVect::operator[] (int i)
 }
 
 inline
-int
+constexpr int
 IntVect::operator[] (int i) const
 {
   CH_assert(i>=0 && i < SpaceDim);
@@ -906,7 +895,7 @@ IntVect::operator>= (const IntVect& p) const
 }
 
 inline
-bool
+constexpr bool
 IntVect::lexLT (const IntVect &s) const
 
 {
