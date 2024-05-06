@@ -32,27 +32,21 @@
 ##  Versions tried: 16.0.1
 ##
 
-makefiles+=compiler/Make.defs.Intel
-
-
+makefiles+=compiler/Make.defs.oneAPI
 
 getcompilerversion := $(CHOMBO_HOME)/mk/compilerVersion.pl
 
 # '-EP' is different from '-E -P' in icc	
 # -C disable stripping out C++ comments, which are valid code in Fortran
-CH_CPP = $(CXX) -EP 
 
-_cxxbaseflags = -m64 -std=c++14
-
-cxxdbgflags += -g -Wall -Wextra -pedantic -fstack-protector-all $(_cxxbaseflags)
-cxxoptflags += -O3 $(_cxxbaseflags)
-
-defldflags = -static-intel
+cxxoptflags += -O3
+cxxdbgflags += -g -Wall -Wextra -pedantic -O0
 
 foptflags += -O3
-fdbgflags += -g -check bounds -check uninit -ftrapuv
+fdbgflags += -g -check bounds -check uninit -ftrapuv -O0
 
-flibflags += -lifport -lifcore -limf -lsvml -lm -lipgo -lirc -lsvml
+flibflags += -lifcore
+
 # Compile with OpenMP
 ifeq ($(OPENMPCC),TRUE)
   cxxoptflags += -qopenmp
@@ -60,9 +54,9 @@ ifeq ($(OPENMPCC),TRUE)
   foptflags += -qopenmp
   fdbgflags += -qopenmp
 else
-  cxxoptflags += -Wno-unknown-pragmas -diag-disable 3180
-  cxxdbgflags += -Wno-unknown-pragmas -diag-disable 3180
-  foptflags += -Wno-unknown-pragmas -diag-disable 3180
-  fdbgflags += -Wno-unknown-pragmas -diag-disable 3180
+  cxxoptflags += -Wno-unknown-pragmas
+  cxxdbgflags += -Wno-unknown-pragmas
+  foptflags += -Wno-unknown-pragmas
+  fdbgflags += -Wno-unknown-pragmas
 endif
 
