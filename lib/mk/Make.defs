@@ -192,6 +192,8 @@ defldoptflags   =
 
 ## Select a compiler file based on the compiler names.
 
+#$(info    cxxname is $(CXX))
+
 # PathScale compilers
 ifeq ($(cxxname),pathCC)
   include $(CHOMBO_HOME)/mk/compiler/Make.defs.PathScale
@@ -218,7 +220,11 @@ else
 endif
 
 ifeq ($(cxxname),icpc)
- include $(CHOMBO_HOME)/mk/compiler/Make.defs.Intel
+  include $(CHOMBO_HOME)/mk/compiler/Make.defs.Intel
+else
+  ifeq ($(cxxname),Intel(R))
+    include $(CHOMBO_HOME)/mk/compiler/Make.defs.oneAPI
+  endif
 endif
 
 # IBM compiler goes by several names
