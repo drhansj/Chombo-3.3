@@ -40,10 +40,10 @@ getcompilerversion := $(CHOMBO_HOME)/mk/compilerVersion.pl
 # -C disable stripping out C++ comments, which are valid code in Fortran
 
 cxxoptflags += -O3
-cxxdbgflags += -g -Wall -Wextra -pedantic -O0
+cxxdbgflags += -g -O0
 
 foptflags += -O3
-fdbgflags += -g -check bounds -check uninit -ftrapuv -O0
+fdbgflags += -g -O0
 
 flibflags += -lifcore
 
