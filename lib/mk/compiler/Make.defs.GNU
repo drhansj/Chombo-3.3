@@ -95,7 +95,7 @@ endif
 
 defcxxcomflags := $(_cxxbaseflags)
 defcxxoptflags := -O3
-defcxxdbgflags := -g -pedantic -Wall
+defcxxdbgflags := -g 
 
   ##  # together so force the preprocessor to use the Fortran compiler
 ifeq ($(system),Darwin)

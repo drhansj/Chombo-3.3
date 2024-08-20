@@ -115,14 +115,14 @@ public:
      Returns a modifiable lvalue reference to the <i>i</i>'th coordinate of the
      IntVect.
   */
-  inline constexpr
+  inline
   int& operator[] (int i);
 
   ///
   /**
      Returns the <i>i</i>'th coordinate of the IntVect.
   */
-  inline constexpr
+  inline
   int operator[] (int i) const;
 
   ///
@@ -234,7 +234,7 @@ public:
      in 3-D:<br>
      (iv1[0] < iv2[0]) || (iv1[0]==iv2[0] && ((iv1[1] < iv2[1] || ((iv1[1] == iv2[1]) && (iv1[2] < iv2[2])))));
   */
-  constexpr bool lexLT (const IntVect& s) const;
+  bool lexLT (const IntVect& s) const;
 
   ///
   /**
@@ -697,14 +697,13 @@ protected:
 #include "NamespaceFooter.H"
 
 
-#if CXXSTD>=14
+namespace std { template <> inline  bool less<CH_XD::IntVect>::operator()(const CH_XD::IntVect& a, const CH_XD::IntVect& b) const { return a.lexLT(b);}
+}
+
 // C++14 version
-namespace std { template <> inline constexpr bool less<CH_XD::IntVect>::operator()(const CH_XD::IntVect& a, const CH_XD::IntVect& b) const { return a.lexLT(b);}
-}
-#else
-namespace std { template <> inline bool less<CH_XD::IntVect>::operator()(const CH_XD::IntVect& a, const CH_XD::IntVect& b) const { return a.lexLT(b);}
-}
-#endif
+//namespace std { template <> inline constexpr bool less<CH_XD::IntVect>::operator()(const CH_XD::IntVect& a, const CH_XD::IntVect& b) const { return a.lexLT(b);}
+//}
+
 
 #include "BaseNamespaceHeader.H"
 
@@ -800,7 +799,7 @@ IntVect::IntVect (const int *a)
 //}
 
 inline
-constexpr int&
+int&
 IntVect::operator[] (int i)
 {
   CH_assert(i>=0 && i < SpaceDim);
@@ -808,7 +807,7 @@ IntVect::operator[] (int i)
 }
 
 inline
-constexpr int
+int
 IntVect::operator[] (int i) const
 {
   CH_assert(i>=0 && i < SpaceDim);
@@ -895,7 +894,7 @@ IntVect::operator>= (const IntVect& p) const
 }
 
 inline
-constexpr bool
+bool
 IntVect::lexLT (const IntVect &s) const
 
 {
