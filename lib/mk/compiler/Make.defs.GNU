@@ -72,6 +72,8 @@ else ifeq ($(CXXSTD),17)
 else
   _cxxbaseflags := -std=c++11
 endif
+# forcing c++ 14 since a lot of code here does not compile without it
+_cxxbaseflags := -std=c++14
 _cxxbaseflags += -march=native -Wno-unused-but-set-variable -Wno-long-long -Wno-sign-compare -Wno-deprecated -ftemplate-depth-99 -Wno-unused-local-typedefs -Wno-literal-suffix
 
   # g++ v3.4.0 started objecting to some uses of HOFFSET()
