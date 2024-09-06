@@ -253,9 +253,41 @@ void EBIndexSpace::define(const ProblemDomain    & a_domain,
                           const Real             & a_dx,
                           const GeometryService  & a_geoserver,
                           int                      a_nCellMax,
-                          int                      a_maxCoarsenings)
+                          int                      a_maxCoarsenings,
+                          int                      a_use_eb_tags,
+                          Vector< IntVectSet > *   a_tags_level)
 {
   CH_TIME("EBIndexSpace::define_geoserver_domain0");
+  //begin debug
+  if(a_use_eb_tags == 0)
+  {
+    pout() << "EBIndexSpace::define: use_eb_tags is OFF" << endl;
+    if(a_tags_level != NULL)
+    {
+      pout() << "EBIndexSpace::define: but curiously, the tags pointer is not NULL" << endl;
+    }
+    else
+    {
+      pout() << "EBIndexSpace::define:and the tags pointer is correctly null" << endl;
+    }
+  }
+  else if(a_use_eb_tags == 1)
+  {
+    pout() << "EBIndexSpace::define: use_eb_tags is ON" << endl;
+    if(a_tags_level != NULL)
+    {
+      pout() << "EBIndexSpace::define:and the tags pointer is correctly not null" << endl;
+    }
+    else
+    {
+      pout() << "EBIndexSpace::define: but curiously, the tags pointer is NULL" << endl;
+    }
+  }
+  else
+  {
+    pout() << "EBIndexSpace::define: use_eb_tags is weird" << endl;
+  }
+  //end debug
 
   pout() << "EBIndexSpace::define - From domain" << endl;
 

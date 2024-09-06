@@ -66,8 +66,10 @@ public:
          const RealVect        & a_origin,
          const Real            & a_dx,
          const GeometryService & a_geoserver,
-         int                     a_nCellMax = -1,
-         int                     a_maxCoarsenings = -1);
+         int                     a_nCellMax       = -1,
+         int                     a_maxCoarsenings = -1,
+         int                     a_use_eb_tags    =  0,
+         Vector< IntVectSet > *  a_tags_level     = NULL);
 
 #ifdef CH_USE_HDF5
   /// reads in all levels from finest level down
