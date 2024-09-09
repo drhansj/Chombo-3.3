@@ -247,18 +247,22 @@ void EBIndexSpace::define(EBISLevel * a_level0,
     }
 #endif
 }
-
-void EBIndexSpace::define(const ProblemDomain    & a_domain,
-                          const RealVect         & a_origin,
-                          const Real             & a_dx,
-                          const GeometryService  & a_geoserver,
-                          int                      a_nCellMax,
-                          int                      a_maxCoarsenings,
-                          int                      a_use_eb_tags,
-                          Vector< IntVectSet > *   a_tags_level)
+///
+void
+EBIndexSpace::
+define(const ProblemDomain    & a_domain,
+       const RealVect         & a_origin,
+       const Real             & a_dx,
+       const GeometryService  & a_geoserver,
+       int                      a_nCellMax,
+       int                      a_maxCoarsenings,
+       int                      a_use_eb_tags,
+       Vector<ProblemDomain>    a_amr_domains   ,
+       Vector<int>              a_amr_ref_ratios,
+       int                      a_max_ghost_eb  ,      
+       Vector< IntVectSet >   * a_tags_level)           
 {
-  CH_TIME("EBIndexSpace::define_geoserver_domain0");
-  //begin debug
+  CH_TIME("EBIndexSpace::define_shell_function");
   if(a_use_eb_tags == 0)
   {
     pout() << "EBIndexSpace::define: use_eb_tags is OFF" << endl;
@@ -270,6 +274,13 @@ void EBIndexSpace::define(const ProblemDomain    & a_domain,
     {
       pout() << "EBIndexSpace::define:and the tags pointer is correctly null" << endl;
     }
+    pout() << "EBIndexSpace::define: calling wholeDomainRefinedDefine (traditional EBIS define)" << endl;
+    wholeDomainRefinedDefine(a_domain,        
+                             a_origin,        
+                             a_dx,            
+                             a_geoserver,     
+                             a_nCellMax,      
+                             a_maxCoarsenings);
   }
   else if(a_use_eb_tags == 1)
   {
@@ -282,12 +293,63 @@ void EBIndexSpace::define(const ProblemDomain    & a_domain,
     {
       pout() << "EBIndexSpace::define: but curiously, the tags pointer is NULL" << endl;
     }
+    pout() << "EBIndexSpace::define: calling refinedInSpaceDefine" << endl;
+    refinedInSpaceDefine(a_domain,        
+                         a_origin,        
+                         a_dx,            
+                         a_geoserver,     
+                         a_nCellMax,      
+                         a_maxCoarsenings,
+                         a_use_eb_tags,         
+                         a_amr_domains   ,      
+                         a_amr_ref_ratios,      
+                         a_max_ghost_eb  ,      
+                         a_tags_level)          ;
+
   }
   else
   {
     pout() << "EBIndexSpace::define: use_eb_tags is weird" << endl;
   }
-  //end debug
+  
+}
+
+///
+/**
+   Traditional EBIS define function.   
+   Internal data is defined everwhere at all levels.
+ **/
+void
+EBIndexSpace::
+refinedInSpaceDefine(const ProblemDomain    & a_domain,
+                     const RealVect         & a_origin,
+                     const Real             & a_dx,
+                     const GeometryService  & a_geoserver,
+                     int                      a_nCellMax,
+                     int                      a_maxCoarsenings,
+                     int                      a_use_eb_tags,
+                     Vector<ProblemDomain>    a_amr_domains,
+                     Vector<int>              a_amr_ref_ratios,
+                     int                      a_max_ghost_eb,
+                     Vector< IntVectSet > *   a_tags_level)
+
+{
+  CH_TIME("EBIndexSpace::refinedInSpaceDomain");
+}
+
+///
+/**
+   Traditional EBIS define function.   
+   Internal data is defined everwhere at all levels.
+ **/
+void EBIndexSpace::wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
+                                            const RealVect         & a_origin,
+                                            const Real             & a_dx,
+                                            const GeometryService  & a_geoserver,
+                                            int                      a_nCellMax,
+                                            int                      a_maxCoarsenings)
+{
+  CH_TIME("EBIndexSpace::wholeDomainRefinedDomain");
 
   pout() << "EBIndexSpace::define - From domain" << endl;
 
@@ -359,7 +421,7 @@ void EBIndexSpace::define(const ProblemDomain    & a_domain,
     MPI_Barrier(Chombo_MPI::comm);
   }
 #endif
-  print_memory_line("ebis_leaving_define");
+  print_memory_line("ebis_leaving_whole_domain_refined_define");
 }
 
 void EBIndexSpace::define(const ProblemDomain                        & a_entireDomain,
