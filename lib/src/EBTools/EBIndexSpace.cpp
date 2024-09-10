@@ -316,8 +316,9 @@ define(const ProblemDomain    & a_domain,
 
 ///
 /**
-   Traditional EBIS define function.   
-   Internal data is defined everwhere at all levels.
+   New, fancy EBIS define function.    This restricts EB grids to
+   Berger Rigoutsos grids with the incoming tags generously padded
+   (tag buffer = a_max_ghost_eb + 2).
  **/
 void
 EBIndexSpace::
@@ -335,48 +336,39 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
 
 {
   CH_TIME("EBIndexSpace::refinedInSpaceDomain");
+  MayDay::Error("not implemented");
 }
 
 ///
 /**
    Traditional EBIS define function.   
    Internal data is defined everwhere at all levels.
+   I cleaned up some formatting but no (intentional) functional changes.
  **/
-void EBIndexSpace::wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
-                                            const RealVect         & a_origin,
-                                            const Real             & a_dx,
-                                            const GeometryService  & a_geoserver,
-                                            int                      a_nCellMax,
-                                            int                      a_maxCoarsenings)
+void EBIndexSpace::
+wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
+                         const RealVect         & a_origin,
+                         const Real             & a_dx,
+                         const GeometryService  & a_geoserver,
+                         int                      a_nCellMax,
+                         int                      a_maxCoarsenings)
 {
   CH_TIME("EBIndexSpace::wholeDomainRefinedDomain");
 
   pout() << "EBIndexSpace::define - From domain" << endl;
 
   pout() << "  Building finest level..." << endl;
+  /**
+    I simplified the nCellMax code here but it should not change the answers at all.
+    dtg 9-10-2024
+  **/
+  m_nCellMax = 32;
   if (a_nCellMax > 0)
-    {
-      m_nCellMax = a_nCellMax;
-    }
-  else
-    {
-      if (SpaceDim == 2)
-        {
-          m_nCellMax = 32;
-        }
-      else
-        {
-          m_nCellMax = 32;
-        }
-    }
+  {
+    m_nCellMax = a_nCellMax;
+  }
 
-  int cellMax = a_nCellMax;
-  if((cellMax < 0) && (m_nCellMax > 0))
-    {
-      // user did not specify a max box size so pull it from member
-      cellMax = m_nCellMax;
-    }
-  buildFirstLevel(a_domain, a_origin, a_dx, a_geoserver, cellMax, a_maxCoarsenings);
+  buildFirstLevel(a_domain, a_origin, a_dx, a_geoserver, m_nCellMax, a_maxCoarsenings);
   m_ebisLevel[0]->clearMultiBoundaries();
 
 #ifdef CH_MPI
@@ -391,29 +383,29 @@ void EBIndexSpace::wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
   pout() << endl;
   int level = 1;
   while (n)
+  {
+    pout() << "  Building level " << level << "..." << endl;
+    n->clearMultiBoundaries();
+    n=buildNextLevel(a_geoserver, m_nCellMax);
+
+    if (n)
     {
-      pout() << "  Building level " << level << "..." << endl;
-      n->clearMultiBoundaries();
-      n=buildNextLevel(a_geoserver, cellMax);
-
-      if (n)
-        {
-          n->printGraphSummary("    ");
-        }
-      else
-      {
-        pout() << "    Empty" << endl;
-      }
-      pout() << endl;
-
-      level++;
+      n->printGraphSummary("    ");
     }
+    else
+    {
+      pout() << "    Empty" << endl;
+    }
+    pout() << endl;
+
+    level++;
+  }
 
 #ifndef NDEBUG
   for (int ilev = 0; ilev < m_nlevels; ilev++)
-    {
-      m_ebisLevel[ilev]->sanityCheck(this);
-    }
+  {
+    m_ebisLevel[ilev]->sanityCheck(this);
+  }
 #endif
 #ifdef CH_MPI
   {

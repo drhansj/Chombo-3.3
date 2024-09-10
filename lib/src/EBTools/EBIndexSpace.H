@@ -89,21 +89,24 @@ public:
                        int                      a_nCellMax,
                        int                      a_maxCoarsenings,
                        int                      a_use_eb_tags,
-                       Vector<ProblemDomain>    a_amr_domains    = Vector<ProblemDomain>(),
-                       Vector<int>              a_amr_ref_ratios = Vector<int>(),
-                       int                      a_max_ghost_eb   = 4586,
-                       Vector< IntVectSet > *   a_tags_level     = NULL);
+                       Vector<ProblemDomain>    a_amr_domains   ,
+                       Vector<int>              a_amr_ref_ratios,
+                       int                      a_max_ghost_eb  ,
+                       Vector< IntVectSet > *   a_tags_level    );
+  
   ///
   /**
      Traditional EBIS define function.   
      Internal data is defined everwhere at all levels.
   **/
-  void EBIndexSpace::wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
-                                              const RealVect         & a_origin,
-                                              const Real             & a_dx,
-                                              const GeometryService  & a_geoserver,
-                                              int                      a_nCellMax,
-                                              int                      a_maxCoarsenings);
+  void
+  wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
+                           const RealVect         & a_origin,
+                           const Real             & a_dx,
+                           const GeometryService  & a_geoserver,
+                           int                      a_nCellMax,
+                           int                      a_maxCoarsenings);
+  
 #ifdef CH_USE_HDF5
   /// reads in all levels from finest level down
   void
