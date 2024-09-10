@@ -143,6 +143,22 @@ public:
                             int                     a_nCellMax,
                             bool                    a_fixRegularNextToMultiValued = true);
 
+
+  ///
+  /**
+     This vector is in EB order, finest first, coarsest last.
+     It also includes boxes which are a coarsening of AMR level 0.
+     So this Vector will be longer (or at least as  long as) a_amr_domains.size()
+  **/
+  void
+  getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
+                           int                        a_nCellMax,
+                           int                        a_maxCoarsenings,
+                           int                        a_use_eb_tags,
+                           Vector<ProblemDomain>      a_amr_domains,
+                           Vector<int>                a_amr_ref_ratios,
+                           int                        a_max_ghost_eb,
+                           Vector< IntVectSet > *     a_tags_level);
   ///
   ~EBIndexSpace();
 

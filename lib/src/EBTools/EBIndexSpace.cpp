@@ -29,6 +29,7 @@
 #include "AllRegularService.H"
 #include "PolyGeom.H"
 #include "EBLevelDataOps.H"
+#include "BRMeshRefine.H"
 
 #include "NamespaceHeader.H"
 
@@ -314,12 +315,95 @@ define(const ProblemDomain    & a_domain,
   
 }
 
+/**
+   This vector is in EB order, finest first, coarsest last.
+   It also includes boxes which are a coarsening of AMR level 0.
+   So this Vector will be longer (or at least as  long as) a_amr_domains.size()
+**/
+void
+EBIndexSpace::
+getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
+                         int                        a_nCellMax,
+                         int                        a_maxCoarsenings,
+                         int                        a_use_eb_tags,
+                         Vector<ProblemDomain>      a_amr_domains,
+                         Vector<int>                a_amr_ref_ratios,
+                         int                        a_max_ghost_eb,
+                         Vector< IntVectSet > *     a_tags_level)
+{
+  /**
+     I simplified the nCellMax logic here but it should not change the answers at all.
+     dtg 9-10-2024
+  **/
+  m_nCellMax = 32;
+  if (a_nCellMax > 0)
+  {
+    m_nCellMax = a_nCellMax;
+  }
+
+  Real fill_ratio   = 1.0;
+  int  block_factor = 4;
+  int  buffer_size  = a_max_ghost_eb + 2;
+  int  num_levels = a_amr_domains.size();
+  
+  BRMeshRefine refiner(a_amr_domains[0],
+                       a_amr_ref_ratios,
+                       fill_ratio,
+                       block_factor,
+                       buffer_size,
+                       m_nCellMax);
+
+  Vector< Vector < Box > > old_meshes(a_amr_domains.size());
+  Vector< Vector < Box > > new_meshes;
+  
+  for(int ilev = 0; ilev < a_amr_domains.size(); ilev++)
+  {
+    old_meshes[ilev] = Vector<Box>(1, a_amr_domains[ilev].domainBox());
+  }
+  int max_level = num_levels-1;
+  int base_level = 0; int top_level = max_level - 1;
+  refiner.regrid(new_meshes, *a_tags_level,  base_level, top_level, old_meshes);
+
+  ///old_meshes and new_meshes only go to amr level 0 (and they are in the wrong order)
+  ///Now for coarser grids (These are in the correct order)
+  Vector<Vector<Box> > boxes_below_amr;
+  Box finer_domain_box = a_amr_domains[0].domainBox();
+  while (finer_domain_box.coarsenable(4))
+  {
+    Box coarser_domain = finer_domain_box.coarsen(2);
+    Vector<Box> coarser_level;
+    domainSplit(coarser_domain, coarser_level, m_nCellMax, 1);
+    boxes_below_amr.push_back(coarser_level);
+    finer_domain_box.coarsen(2);
+  }
+  int total_size = new_meshes.size() + boxes_below_amr.size();
+  a_internal_layouts.resize(total_size);
+  int i_internal = 0;
+  //have to go backwards
+  for(int ilev = new_meshes.size()-1; ilev >= 0; ilev--)
+  {
+    Vector<Box> boxes = new_meshes[ilev];
+    Vector<int> procs;
+    LoadBalance(procs,boxes);
+    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs);
+    i_internal++;
+  }
+  //these are already in the correct order
+  for(int ilev = 0; ilev < boxes_below_amr.size(); ilev++)
+  {
+    Vector<Box> boxes = boxes_below_amr[ilev];
+    Vector<int> procs;
+    LoadBalance(procs,boxes);
+    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs);
+    i_internal++;
+  }
+}
 ///
 /**
    New, fancy EBIS define function.    This restricts EB grids to
    Berger Rigoutsos grids with the incoming tags generously padded
    (tag buffer = a_max_ghost_eb + 2).
- **/
+**/
 void
 EBIndexSpace::
 refinedInSpaceDefine(const ProblemDomain    & a_domain,
@@ -336,6 +420,21 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
 
 {
   CH_TIME("EBIndexSpace::refinedInSpaceDomain");
+  /**
+     This vector is in EB order, finest first, coarsest last.
+     It also includes boxes which are a coarsening of AMR level 0.
+     So this Vector will be longer (or at least as  long as) a_amr_domains.size()
+  **/
+  Vector<DisjointBoxLayout> internal_layouts;
+  getRefinedInSpaceLayouts(internal_layouts,
+                           a_nCellMax,  
+                           a_maxCoarsenings,
+                           a_use_eb_tags,
+                           a_amr_domains,
+                           a_amr_ref_ratios,
+                           a_max_ghost_eb,
+                           a_tags_level);
+
   MayDay::Error("not implemented");
 }
 
@@ -359,7 +458,7 @@ wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
 
   pout() << "  Building finest level..." << endl;
   /**
-    I simplified the nCellMax code here but it should not change the answers at all.
+    I simplified the nCellMax logic here but it should not change the answers at all.
     dtg 9-10-2024
   **/
   m_nCellMax = 32;
