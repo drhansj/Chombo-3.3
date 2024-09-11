@@ -140,6 +140,14 @@ public:
             const bool            & a_fixRegularNextToMultiValued = true);
 
   void checkGraph() const;
+
+  ///
+  /**
+     Average down where necessary plus make all the coarser-finer links.
+     This changes both objects.   
+  **/
+  void reconcileWithFinerLevel(EBISLevel& a_finer_level);
+  
 #ifdef CH_USE_HDF5
   /// read from file from top level only file
   EBISLevel(HDF5Handle& handle);

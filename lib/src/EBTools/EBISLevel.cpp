@@ -46,6 +46,21 @@ EBIndexSpace* Chombo_EBIS::instance()
 
   return  s_instance;
 }
+
+///
+/**
+   Average down where necessary plus make all the coarser-finer links.
+   This changes both objects.   
+**/
+void
+EBISLevel::
+reconcileWithFinerLevel(EBISLevel& a_finer_level)
+{
+  MayDay::Error("EBISLevel::reconcileWithFinerLevel not implemented");
+}
+  
+  
+
 ////
 void 
 EBISLevel::

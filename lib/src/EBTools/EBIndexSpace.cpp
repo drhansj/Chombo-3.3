@@ -318,7 +318,8 @@ define(const ProblemDomain    & a_domain,
 /**
    This vector is in EB order, finest first, coarsest last.
    It also includes boxes which are a coarsening of AMR level 0.
-   So this Vector will be longer (or at least as  long as) a_amr_domains.size()
+   So this Vector will be longer (or at least as  long as) a_amr_domains.size().
+   This sets m_nCellMax and m_domainLevel
 **/
 void
 EBIndexSpace::
@@ -378,24 +379,30 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
   }
   int total_size = new_meshes.size() + boxes_below_amr.size();
   a_internal_layouts.resize(total_size);
+  m_domainLevel.resize(     total_size);
   int i_internal = 0;
   //have to go backwards
   for(int ilev = new_meshes.size()-1; ilev >= 0; ilev--)
   {
-    Vector<Box> boxes = new_meshes[ilev];
+    Vector<Box>           boxes =    new_meshes[ilev];
+    ProblemDomain dom_amr_level = a_amr_domains[ilev];
     Vector<int> procs;
     LoadBalance(procs,boxes);
-    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs);
+    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs, dom_amr_level);
+    m_domainLevel     [i_internal] = dom_amr_level;
     i_internal++;
   }
   //these are already in the correct order
+  ProblemDomain dom_level = a_amr_domains[0];
   for(int ilev = 0; ilev < boxes_below_amr.size(); ilev++)
   {
     Vector<Box> boxes = boxes_below_amr[ilev];
     Vector<int> procs;
     LoadBalance(procs,boxes);
-    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs);
+    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs, dom_level);
+    m_domainLevel     [i_internal] = dom_level;
     i_internal++;
+    dom_level.coarsen(2);
   }
 }
 ///
@@ -424,6 +431,7 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
      This vector is in EB order, finest first, coarsest last.
      It also includes boxes which are a coarsening of AMR level 0.
      So this Vector will be longer (or at least as  long as) a_amr_domains.size()
+     This sets m_nCellMax and m_domainLevel
   **/
   Vector<DisjointBoxLayout> internal_layouts;
   getRefinedInSpaceLayouts(internal_layouts,
@@ -435,14 +443,40 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
                            a_max_ghost_eb,
                            a_tags_level);
 
-  MayDay::Error("not implemented");
+  /**
+     Setting member data.
+     m_nCellMax and m_domainLevel were set in getRefinedInSpaceLayouts.
+  **/
+  m_distributedData = false;
+  m_nlevels = internal_layouts.size();
+  m_ebisLevel.resize(m_nlevels, NULL);
+  /**
+     Rather than follow exactly the old  dance that got m_ebisLevel  defined,
+     I will instead use a two step process for each EBISLevel.
+     Each EBISLevel will get defined as if it is the finest one.
+     After that, it will be reconciled with finer levels if they exist.
+     1.  This is way simpler.
+     2.  This keeps me from having to touch some very old, very delicate code.
+   **/
+  Real dx_lev = a_dx;
+  for(int ilev = 0; ilev < m_nlevels; ilev++)
+  {
+    m_ebisLevel[ilev] = new EBISLevel(m_domainLevel[ilev], a_origin, dx_lev, a_geoserver, m_nCellMax);
+    if(ilev > 0)
+    {
+      m_ebisLevel[ilev]->reconcileWithFinerLevel(*m_ebisLevel[ilev-1]);
+    }
+    dx_lev *= 2;
+  }
+  m_isDefined = true;
+
 }
 
 ///
 /**
    Traditional EBIS define function.   
    Internal data is defined everwhere at all levels.
-   I cleaned up some formatting but no (intentional) functional changes.
+   I cleaned up some formatting but no (intentional) functional changes. -dtg
  **/
 void EBIndexSpace::
 wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
