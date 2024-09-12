@@ -50,13 +50,27 @@ EBIndexSpace* Chombo_EBIS::instance()
 ///
 /**
    Average down where necessary plus make all the coarser-finer links.
-   This changes both objects.   
+   This changes both objects.   This one is tricky.
 **/
 void
 EBISLevel::
 reconcileWithFinerLevel(EBISLevel& a_finer_level)
 {
-  MayDay::Error("EBISLevel::reconcileWithFinerLevel not implemented");
+
+  /**
+     Here is the setup:
+     Both levels have been filled as if they were the finest one except for the m_level bit.
+     The meta data (grids, domain, origin, dx) are dictated from on high so these do not change.
+     I cannot conceive of this being called where m_geoserver objects do not match
+     (and that data member only matters if distributedData is true).
+     
+     The only two things that can change here are m_graph and m_data
+   **/
+  if(m_level != (a_finer_level.m_level+1))
+  {
+    MayDay::Error("EBISLevel::reconcileWithFinerLevel: logic error 4586");
+  }
+  
 }
   
   
@@ -508,7 +522,10 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
                      const Real            & a_dx,
                      const GeometryService & a_geoserver,
                      int                     a_nCellMax,
-                     const bool            & a_fixRegularNextToMultiValued)
+                     int                     a_ilev,
+                     bool                    a_impose_dbl,
+                     DisjointBoxLayout       a_imposed_dbl,
+                     bool                    a_fixRegularNextToMultiValued)
 {
   // this is the method called by EBIndexSpace::buildFirstLevel
   CH_TIME("EBISLevel::EBISLevel_geoserver_domain");
@@ -523,16 +540,23 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
   m_tolerance = a_dx*1E-4;
   m_origin = a_origin;
 
-  m_level = 0;
+  m_level = a_ilev;
 
   m_geoserver = &a_geoserver;
 
-  Vector<Box> vbox;
-  Vector<unsigned long long> irregCount;
-
-  if(!s_distributedData){
+  pout() << "EBISLevel:before defining grids" << endl;
+  if(a_impose_dbl)
+  {
+    m_grids = a_imposed_dbl;
+  }
+  else
+  {
+    if(!s_distributedData)
     {
-      CH_TIME("EBISLevel::EBISLevel_makeboxes");
+      CH_TIME("EBISLevel::EBISLevel_makegrids_non_distributed_case");
+      Vector<Box> vbox;
+      Vector<unsigned long long> irregCount;
+
       makeBoxes(vbox,
 		irregCount,
 		a_domain.domainBox(),
@@ -541,34 +565,31 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
 		a_origin,
 		a_dx,
 		a_nCellMax);
-    }
 
-    // pout()<<vbox<<"\n\n";
-    //load balance the boxes
-    Vector<int> procAssign;
-    //UnLongLongLoadBalance(procAssign, irregCount, vbox);
-    basicLoadBalance(procAssign, vbox.size());
-    //   pout()<<irregCount<<std::endl;
-    //   pout()<<procAssign<<std::endl;
-    pout() << "before defining grids" << endl;
-    m_grids.define(vbox, procAssign,a_domain);//this should use a_domain for periodic
-    pout() << "after defining grids" << endl;
-  }
-  else
+      // pout()<<vbox<<"\n\n";
+      //load balance the boxes
+      Vector<int> procAssign;
+      //UnLongLongLoadBalance(procAssign, irregCount, vbox);
+      basicLoadBalance(procAssign, vbox.size());
+      //   pout()<<irregCount<<std::endl;
+      //   pout()<<procAssign<<std::endl;
+      m_grids.define(vbox, procAssign,a_domain);//this should use a_domain for periodic
+    }
+    else
     {
-      CH_TIME("EBISLevel::EBISLevel_makegrids");
+      CH_TIME("EBISLevel::EBISLevel_makegrids_distributed_case");
       // permit the geometry service to construct a layout, or accept an already defined layout from EBIndexSpace
-
       (const_cast<GeometryService*>(&a_geoserver))->makeGrids(a_domain, m_grids, a_nCellMax, 15);
+      RealVect dx2D;
+      for (int i = 0; i < SpaceDim; i++)
+      {
+        dx2D[i]=a_dx;
+      }
+      (const_cast<GeometryService*>(&a_geoserver))->postMakeBoxLayout(m_grids,dx2D);
     }
+  }// end else (not imposing grid case)  
+  pout() << "EBISLevel: after defining grids" << endl;
 
-  RealVect dx2D;
-  for (int i = 0; i < SpaceDim; i++)
-    {
-      dx2D[i]=a_dx;
-    }
-
-  (const_cast<GeometryService*>(&a_geoserver))->postMakeBoxLayout(m_grids,dx2D);
   LayoutData<Vector<IrregNode> > allNodes(m_grids);
 
   EBGraphFactory graphfact(a_domain);
@@ -588,19 +609,19 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
 
 #pragma omp parallel for schedule(runtime)
   for (int mybox = 0; mybox < nbox; mybox++)
-    {
-      const DataIndex& din = dit[mybox];
+  {
+    const DataIndex& din = dit[mybox];
       
-      m_data[din].define(m_graph[din], allNodes[din], m_grids[din]);
-    }
+    m_data[din].define(m_graph[din], allNodes[din], m_grids[din]);
+  }
 
   if (a_geoserver.canGenerateMultiCells())
+  {
+    if (a_fixRegularNextToMultiValued)
     {
-      if (a_fixRegularNextToMultiValued)
-        {
-          fixRegularNextToMultiValued();
-        }
+      fixRegularNextToMultiValued();
     }
+  }
   pout() << "Exiting EBISLevel::EBISLevel called by EBIndexSpace::buildFirstLevel..." << endl;
 }
 
@@ -1068,7 +1089,7 @@ void EBISLevel::coarsenFaces(EBISLevel& a_fineEBIS)
 EBISLevel::EBISLevel(EBISLevel             & a_fineEBIS,
                      const GeometryService & a_geoserver,
                      int                     a_nCellMax,
-                     const bool            & a_fixRegularNextToMultiValued)
+                     bool                    a_fixRegularNextToMultiValued)
 { // method used by EBIndexSpace::buildNextLevel
   CH_TIME("EBISLevel::EBISLevel_fineEBIS");
 

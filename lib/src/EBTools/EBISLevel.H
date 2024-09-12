@@ -125,7 +125,10 @@ public:
             const Real            & a_dx,
             const GeometryService & a_geoserver,
             int                     a_nCellMax,
-            const bool            & a_fixRegularNextToMultiValued = true);
+            int                     a_ilev        = 0,
+            bool                    a_impose_dbl  = false,
+            DisjointBoxLayout       a_imposed_dbl = DisjointBoxLayout(),
+            bool                    a_fixRegularNextToMultiValued = true);
 
   ///
   /**
@@ -137,7 +140,7 @@ public:
   EBISLevel(EBISLevel             & a_finerLevel,
             const GeometryService & a_geoserver,
             int                     a_nCellMax,
-            const bool            & a_fixRegularNextToMultiValued = true);
+            bool                    a_fixRegularNextToMultiValued = true);
 
   void checkGraph() const;
 

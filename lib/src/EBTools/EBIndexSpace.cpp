@@ -461,7 +461,7 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
   Real dx_lev = a_dx;
   for(int ilev = 0; ilev < m_nlevels; ilev++)
   {
-    m_ebisLevel[ilev] = new EBISLevel(m_domainLevel[ilev], a_origin, dx_lev, a_geoserver, m_nCellMax);
+    m_ebisLevel[ilev] = new EBISLevel(m_domainLevel[ilev], a_origin, dx_lev, a_geoserver, m_nCellMax, ilev);
     if(ilev > 0)
     {
       m_ebisLevel[ilev]->reconcileWithFinerLevel(*m_ebisLevel[ilev-1]);
