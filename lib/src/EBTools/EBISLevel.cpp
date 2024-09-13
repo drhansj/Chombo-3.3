@@ -70,6 +70,76 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
   {
     MayDay::Error("EBISLevel::reconcileWithFinerLevel: logic error 4586");
   }
+
+  /**
+     I would just call EBISL::coarsenVoFs but I did not want to hack it.   
+     This has to account for the fact that the fine does not cover the coarse
+     so you can't just wipe out the coarse data.
+  **/
+  DisjointBoxLayout gridFine = a_finer_level.m_grids;
+  DisjointBoxLayout gridCoar =               m_grids;
+  
+  DisjointBoxLayout gridCoFi;
+  coarsen(gridCoFi, gridFine, 2);
+  //coarsenvof graph stuff
+  EBGraphFactory     ebgraphfactfine(a_finer_level.m_domain);
+  EBGraphFactory     ebgraphfactcoar(              m_domain);
+  EBGraphFactory     ebgraphfactcofi(              m_domain);
+  LevelData<EBGraph>& grapFine = a_finer_level.m_graph;
+  LevelData<EBGraph>& grapCoar =               m_graph;
+  LevelData<EBGraph>  grapCoFi(gridCoFi, 1, IntVect::Unit, ebgraphfactcofi);
+  DataIterator ditFine = gridFine.dataIterator();
+  for(int ibox = 0; ibox < ditFine.size(); ibox++)
+  {
+    grapCoFi[ditFine[ibox]].coarsenVoFs(grapFine[ditFine[ibox]], gridCoFi[ditFine[ibox]]);
+  }
+
+
+  //coarsenvof data stuff
+  EBDataFactory ebdatafact;
+  LevelData<EBData>  dataCoFi(gridCoFi,1, IntVect::Zero, ebdatafact);
+  LevelData<EBData>& dataFine = a_finer_level.m_data;
+  LevelData<EBData>& dataCoar =               m_data;
+  pout() << "reconcileWithFiner: before coarsenVoFs " << endl;
+  for(int ibox = 0; ibox < ditFine.size(); ibox++)
+  {
+    dataCoFi[ditFine[ibox]].defineVoFData( grapCoFi[ditFine[ibox]], gridCoFi[ditFine[ibox]]);
+    dataCoFi[ditFine[ibox]].defineFaceData(grapCoFi[ditFine[ibox]], gridCoFi[ditFine[ibox]]);
+    dataCoFi[ditFine[ibox]].coarsenVoFs(dataFine[ditFine[ibox]],
+                                        grapFine[ditFine[ibox]],
+                                        grapCoFi[ditFine[ibox]],
+                                        gridCoFi[ditFine[ibox]]);
+                                    
+  }
+
+
+  /**
+     This bit is from EBISL::coarsenFaces
+     Note: coarsenFaces goes through a lot of effort to avoid the member
+     data having ghost cells.   Now I think I was being silly all those years ago 
+     and the member data has ghost cells when this function is called.
+     dtg 9-13-2024
+   **/
+  pout() << "reconcileWithFiner: before coarsenFaces " << endl;
+  for(int ibox = 0; ibox < ditFine.size(); ibox++)
+  {
+    grapCoFi[ditFine[ibox]].coarsenFaces(grapCoFi[ditFine[ibox]], grapFine[ditFine[ibox]]);
+    dataCoFi[ditFine[ibox]].coarsenFaces(dataCoFi[ditFine[ibox]],
+                                         grapFine[ditFine[ibox]],
+                                         grapCoFi[ditFine[ibox]],
+                                         gridCoFi[ditFine[ibox]]);
+  }
+  
+  Interval interv(0, 0);
+  grapCoFi.copyTo(interv, grapCoar, interv);
+  dataCoFi.copyTo(interv, dataCoar, interv);
+
+  ///detritus 
+  pout() << "reconcileWithFiner: before fix reg next to multivalued " << endl;
+  fixRegularNextToMultiValued();
+  
+  pout() << "reconcileWithFiner: before fix fine to coarse " << endl;
+  fixFineToCoarse(a_finer_level);
   
 }
   
@@ -593,7 +663,7 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
   LayoutData<Vector<IrregNode> > allNodes(m_grids);
 
   EBGraphFactory graphfact(a_domain);
-  m_graph.define(m_grids, 1, IntVect::Unit, graphfact);
+  m_graph.define(m_grids, 1, 3*IntVect::Unit, graphfact);
 
   defineGraphFromGeo(m_graph, allNodes, a_geoserver, m_grids,
                      m_domain,m_origin, m_dx);
@@ -601,7 +671,7 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
   checkGraph();
 
   EBDataFactory dataFact;
-  m_data.define(m_grids, 1, IntVect::Zero, dataFact);
+  m_data.define(m_grids, 1, 3*IntVect::Unit, dataFact);
 
   const DataIterator& dit = m_grids.dataIterator();
 
@@ -1089,6 +1159,8 @@ void EBISLevel::coarsenFaces(EBISLevel& a_fineEBIS)
 EBISLevel::EBISLevel(EBISLevel             & a_fineEBIS,
                      const GeometryService & a_geoserver,
                      int                     a_nCellMax,
+                     bool                    a_impose_dbl,
+                     DisjointBoxLayout       a_imposed_dbl,
                      bool                    a_fixRegularNextToMultiValued)
 { // method used by EBIndexSpace::buildNextLevel
   CH_TIME("EBISLevel::EBISLevel_fineEBIS");
@@ -1108,28 +1180,37 @@ EBISLevel::EBISLevel(EBISLevel             & a_fineEBIS,
 
  
 //  pout() << "before make boxes" << endl;
-  if(!s_distributedData){
-    Vector<Box> vbox;
-    Vector<unsigned long long> irregCount;
+  if(a_impose_dbl)
+  {
+    m_grids = a_imposed_dbl;
+  }
+  else
+  {
+    if(!s_distributedData)
     {
-      CH_TIME("EBISLevel::EBISLevel_fineEBIS_makeboxes 2");
-      makeBoxes(vbox, irregCount, m_domain.domainBox(), m_domain, a_geoserver,
-		m_origin, m_dx, a_nCellMax);
-    }
+      Vector<Box> vbox;
+      Vector<unsigned long long> irregCount;
+      {
+        CH_TIME("EBISLevel::EBISLevel_fineEBIS_makeboxes 2");
+        makeBoxes(vbox, irregCount, m_domain.domainBox(), m_domain, a_geoserver,
+                  m_origin, m_dx, a_nCellMax);
+      }
 
-    //pout()<<vbox<<"\n\n";
-    //load balance the boxes
-    Vector<int> procAssign;
-    //UnLongLongLoadBalance(procAssign, irregCount, vbox);
-    basicLoadBalance(procAssign, vbox.size());
-    //pout()<<procAssign<<std::endl;
-    //define the layout.  this includes the domain and box stuff
-    m_grids.define(vbox, procAssign);//this should use m_domain for periodic
-  }
-  else {
-    (const_cast<GeometryService*>(&a_geoserver))->makeGrids(m_domain, m_grids, a_nCellMax, 15);
-  }
+      //pout()<<vbox<<"\n\n";
+      //load balance the boxes
+      Vector<int> procAssign;
+      //UnLongLongLoadBalance(procAssign, irregCount, vbox);
+      basicLoadBalance(procAssign, vbox.size());
+      //pout()<<procAssign<<std::endl;
+      //define the layout.  this includes the domain and box stuff
+      m_grids.define(vbox, procAssign);//this should use m_domain for periodic
+    }//end if(!s_distributedData)
+    else
+    {
+      (const_cast<GeometryService*>(&a_geoserver))->makeGrids(m_domain, m_grids, a_nCellMax, 15);
+    } //end if(distributeddata)
   
+  } //end else for imposed dbl  
 
   EBGraphFactory ebgraphfact(m_domain);
 //  pout() << "before defining grids" << endl;

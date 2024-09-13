@@ -140,6 +140,8 @@ public:
   EBISLevel(EBISLevel             & a_finerLevel,
             const GeometryService & a_geoserver,
             int                     a_nCellMax,
+            bool                    a_impose_dbl = false,
+            DisjointBoxLayout       a_imposed_dbl = DisjointBoxLayout(),
             bool                    a_fixRegularNextToMultiValued = true);
 
   void checkGraph() const;

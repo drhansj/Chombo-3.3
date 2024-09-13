@@ -458,16 +458,30 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
      1.  This is way simpler.
      2.  This keeps me from having to touch some very old, very delicate code.
    **/
+  int n_amr_levels = a_amr_domains.size();
   Real dx_lev = a_dx;
-  for(int ilev = 0; ilev < m_nlevels; ilev++)
+  for(int eb_lev = 0; eb_lev < m_nlevels; eb_lev++)
   {
-    m_ebisLevel[ilev] = new EBISLevel(m_domainLevel[ilev], a_origin, dx_lev, a_geoserver, m_nCellMax, ilev);
-    if(ilev > 0)
+    bool impose_dbl = true;
+    DisjointBoxLayout imposed_dbl = internal_layouts[eb_lev];
+    bool fixRegNextToCov = true;
+    //only do this jazz if we are at or above AMR level 0
+    if(eb_lev < n_amr_levels)
     {
-      m_ebisLevel[ilev]->reconcileWithFinerLevel(*m_ebisLevel[ilev-1]);
+      m_ebisLevel[eb_lev] = new EBISLevel(m_domainLevel[eb_lev], a_origin, dx_lev, a_geoserver, m_nCellMax,
+                                          eb_lev, impose_dbl, imposed_dbl, fixRegNextToCov);
+      if(eb_lev > 0)
+      {
+        m_ebisLevel[eb_lev]->reconcileWithFinerLevel(*m_ebisLevel[eb_lev-1]);
+      }
+    } 
+    else  // here we are below amr level 0.  we know the domain is covered so we revert to the old way of doing stuff
+    {
+      m_ebisLevel[eb_lev] = new EBISLevel(*m_ebisLevel[eb_lev-1], a_geoserver, a_nCellMax,
+                                          impose_dbl, imposed_dbl, fixRegNextToCov);
     }
     dx_lev *= 2;
-  }
+  } //end loop over eb layouts
   m_isDefined = true;
 
 }
