@@ -41,7 +41,7 @@
 #include "FArrayBox.H"
 #include "LevelData.H"
 #include "DisjointBoxLayout.H"
-
+#include "NamespaceHeader.H"
 
 
 /// Old school Debugging utilities 
@@ -72,22 +72,14 @@
  **/
 namespace PrChDebug
 {
-  typedef   Chombo::IntVect                      ch_iv;
-  typedef   Chombo::Box                          ch_box;
-  typedef   Chombo::FArrayBox                    ch_fab;
-  typedef   Chombo::DataIterator                 ch_dit;
-  typedef   Chombo::DisjointBoxLayout            ch_dbl;
-  typedef   Chombo::LevelData<ch_fab>            ch_ldf;
-                                                  
-  
-  void
-  dumpSten(pr_sten* a_sten_ptr)
-  {
-    if(a_sten_ptr != NULL)
-    {
-      a_sten_ptr->print();
-    }
-  }
+
+  typedef   CH_XD::IntVect                      ch_iv;
+  typedef   CH_XD::Box                          ch_box;
+  typedef   CH_XD::FArrayBox                    ch_fab;
+  typedef   CH_XD::DataIterator                 ch_dit;
+  typedef   CH_XD::DisjointBoxLayout            ch_dbl;
+  typedef   CH_XD::LevelData<ch_fab>            ch_ldf;
+
 
   void 
   dumpCh(ch_fab* a_dataPtr, ch_box a_areaBox)
@@ -210,7 +202,6 @@ inline void dummy_function_to_get_functions_into_symbol_table()
   PrChDebug::dumpLDLayoutCh(NULL);
   PrChDebug::dumpAreaCh(NULL);
   PrChDebug::dumpLDAreaCh(NULL);
-  PrChDebug::dumpSten(NULL);
 }
 
 #undef DBG_LOX 
@@ -224,6 +215,7 @@ inline void dummy_function_to_get_functions_into_symbol_table()
 #undef DBG_DENOM_LO 
 #undef DBG_NUMER_HI 
 #undef DBG_DENOM_HI 
+#include "NamespaceFooter.H"
 
 
 #endif
