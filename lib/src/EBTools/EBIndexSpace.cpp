@@ -332,10 +332,6 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
                          int                        a_max_ghost_eb,
                          Vector< IntVectSet > *     a_tags_level)
 {
-  /**
-     I simplified the nCellMax logic here but it should not change the answers at all.
-     dtg 9-10-2024
-  **/
   m_nCellMax = 32;
   if (a_nCellMax > 0)
   {
@@ -345,25 +341,31 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
   Real fill_ratio   = 1.0;
   int  block_factor = 4;
   int  buffer_size  = a_max_ghost_eb + 2;
-  int  num_levels = a_amr_domains.size();
+  int  num_levels   = a_amr_domains.size();
   
-  BRMeshRefine refiner(a_amr_domains[0],
-                       a_amr_ref_ratios,
-                       fill_ratio,
-                       block_factor,
-                       buffer_size,
-                       m_nCellMax);
-
-  Vector< Vector < Box > > old_meshes(a_amr_domains.size());
-  Vector< Vector < Box > > new_meshes;
-  
-  for(int ilev = 0; ilev < a_amr_domains.size(); ilev++)
+  Vector< Vector < Box > > new_meshes(num_levels);
+  if(num_levels > 1)
   {
-    old_meshes[ilev] = Vector<Box>(1, a_amr_domains[ilev].domainBox());
-  }
-  int max_level = num_levels-1;
-  int base_level = 0; int top_level = max_level - 1;
-  refiner.regrid(new_meshes, *a_tags_level,  base_level, top_level, old_meshes);
+    BRMeshRefine refiner(a_amr_domains[0],
+                         a_amr_ref_ratios,
+                         fill_ratio,
+                         block_factor,
+                         buffer_size,
+                         m_nCellMax);
+
+    Vector< Vector < Box > > old_meshes(num_levels);
+  
+    for(int ilev = 0; ilev < num_levels; ilev++)
+    {
+      old_meshes[ilev] = Vector<Box>(1, a_amr_domains[ilev].domainBox());
+    }
+    int max_level = num_levels-1;  int base_level = 0; int top_level =  max_level - 1;
+    refiner.regrid(new_meshes, *a_tags_level,  base_level, top_level, old_meshes);
+  } //end if(num_levels > 1)
+  else
+  {
+    domainSplit(a_amr_domains[0], new_meshes[0], m_nCellMax);
+  } //end if(num_levels == 1)
 
   ///old_meshes and new_meshes only go to amr level 0 (and they are in the wrong order)
   ///Now for coarser grids (These are in the correct order)
@@ -886,9 +888,14 @@ EBISLevel* EBIndexSpace::buildNextLevel(const GeometryService & a_geoserver,
  
     m_domainLevel[ilev] = m_domainLevel[ilev-1];
     m_domainLevel[ilev].coarsen(2);
+    ///this stuff does not imply to this function
+    bool              impose_dbl = false;
+    DisjointBoxLayout imposed_dbl;
     m_ebisLevel[ilev] = new EBISLevel(*m_ebisLevel[ilev-1],
                                       a_geoserver,
                                       a_nCellMax,
+                                      impose_dbl,
+                                      imposed_dbl,
                                       a_fixRegularNextToMultiValued);
 
  
