@@ -398,13 +398,14 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
   ProblemDomain dom_level = a_amr_domains[0];
   for(int ilev = 0; ilev < boxes_below_amr.size(); ilev++)
   {
+    //here we have to coarsen first because it is starts at amr level 0 (which is accounted for)
+    dom_level.coarsen(2);
     Vector<Box> boxes = boxes_below_amr[ilev];
     Vector<int> procs;
     LoadBalance(procs,boxes);
     a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs, dom_level);
     m_domainLevel     [i_internal] = dom_level;
     i_internal++;
-    dom_level.coarsen(2);
   }
 }
 ///
