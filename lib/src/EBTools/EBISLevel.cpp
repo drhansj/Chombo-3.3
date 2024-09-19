@@ -664,14 +664,15 @@ EBISLevel::EBISLevel(const ProblemDomain   & a_domain,
 
   EBGraphFactory graphfact(a_domain);
   m_graph.define(m_grids, 1, 3*IntVect::Unit, graphfact);
+  pout() << "EBISLevel: after calling m_graph.define" << endl;
 
   defineGraphFromGeo(m_graph, allNodes, a_geoserver, m_grids,
                      m_domain,m_origin, m_dx);
-
-  checkGraph();
+  pout() << "EBISLevel: after calling defineGraphFromGeo" << endl;
 
   EBDataFactory dataFact;
   m_data.define(m_grids, 1, 3*IntVect::Unit, dataFact);
+  pout() << "EBISLevel: after calling m_data.define" << endl;
 
   const DataIterator& dit = m_grids.dataIterator();
 
@@ -1241,14 +1242,13 @@ EBISLevel::EBISLevel(EBISLevel             & a_fineEBIS,
   // fix the fine->coarseVoF thing.
 //  pout() << "before fix fine to coarse " << endl;
   fixFineToCoarse(a_fineEBIS);
-  checkGraph();
-#if 0
-  pout() << "EBISLevel::EBISLevel 4 - m_grids - m_dx: " << m_dx << endl;
-  pout() << "--------" << endl;
-  pout() << m_grids.boxArray().size() << endl;
-  pout() << "--------" << endl;
-  pout() << endl;
-#endif
+  //checkgraph has assumptions...
+  if(!a_impose_dbl)
+  {
+    checkGraph();
+  }
+
+  pout() << "EBISLevel::EBISLevel 4  m_dx =  " << m_dx  << ", m_grids.boxArray().size() = " << m_grids.boxArray().size() << endl;
 }
 
 EBISLevel::~EBISLevel()

@@ -316,27 +316,18 @@ define(const ProblemDomain    & a_domain,
 }
 
 /**
-   This vector is in EB order, finest first, coarsest last.
-   It also includes boxes which are a coarsening of AMR level 0.
-   So this Vector will be longer (or at least as  long as) a_amr_domains.size().
-   This sets m_nCellMax and m_domainLevel
 **/
 void
 EBIndexSpace::
-getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
-                         int                        a_nCellMax,
+getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_amr_layouts,
                          int                        a_maxCoarsenings,
                          int                        a_use_eb_tags,
                          Vector<ProblemDomain>      a_amr_domains,
                          Vector<int>                a_amr_ref_ratios,
                          int                        a_max_ghost_eb,
-                         Vector< IntVectSet > *     a_tags_level)
+                         Vector< IntVectSet > *     a_tags_level) const
 {
-  m_nCellMax = 32;
-  if (a_nCellMax > 0)
-  {
-    m_nCellMax = a_nCellMax;
-  }
+
 
   Real fill_ratio   = 1.0;
   int  block_factor = 4;
@@ -367,45 +358,14 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
     domainSplit(a_amr_domains[0], new_meshes[0], m_nCellMax);
   } //end if(num_levels == 1)
 
-  ///old_meshes and new_meshes only go to amr level 0 (and they are in the wrong order)
-  ///Now for coarser grids (These are in the correct order)
-  Vector<Vector<Box> > boxes_below_amr;
-  Box finer_domain_box = a_amr_domains[0].domainBox();
-  while (finer_domain_box.coarsenable(2))
-  {
-    Box coarser_domain_box = coarsen(finer_domain_box,2);
-    Vector<Box> coarser_level;
-    domainSplit(coarser_domain_box, coarser_level, m_nCellMax, 1);
-    boxes_below_amr.push_back(coarser_level);
-    finer_domain_box.coarsen(2);
-  }
-  int total_size = new_meshes.size() + boxes_below_amr.size();
-  a_internal_layouts.resize(total_size);
-  m_domainLevel.resize(     total_size);
-  int i_internal = 0;
-  //have to go backwards
-  for(int ilev = new_meshes.size()-1; ilev >= 0; ilev--)
+  a_amr_layouts.resize(new_meshes.size());
+  for(int ilev = 0; ilev < new_meshes.size(); ilev++)
   {
     Vector<Box>           boxes =    new_meshes[ilev];
     ProblemDomain dom_amr_level = a_amr_domains[ilev];
     Vector<int> procs;
     LoadBalance(procs,boxes);
-    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs, dom_amr_level);
-    m_domainLevel     [i_internal] = dom_amr_level;
-    i_internal++;
-  }
-  //these are already in the correct order
-  ProblemDomain dom_level = a_amr_domains[0];
-  for(int ilev = 0; ilev < boxes_below_amr.size(); ilev++)
-  {
-    //here we have to coarsen first because it is starts at amr level 0 (which is accounted for)
-    dom_level.coarsen(2);
-    Vector<Box> boxes = boxes_below_amr[ilev];
-    Vector<int> procs;
-    LoadBalance(procs,boxes);
-    a_internal_layouts[i_internal] = DisjointBoxLayout(boxes, procs, dom_level);
-    m_domainLevel     [i_internal] = dom_level;
-    i_internal++;
+    a_amr_layouts[ilev] = DisjointBoxLayout(boxes, procs, dom_amr_level);
   }
 }
 ///
@@ -413,6 +373,13 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
    New, fancy EBIS define function.    This restricts EB grids to
    Berger Rigoutsos grids with the incoming tags generously padded
    (tag buffer = a_max_ghost_eb + 2).
+     Rather than follow exactly the old  dance that got m_ebisLevel  defined,
+     I will instead use a two step process for each EBISLevel.
+     At or above AMR level 0, each EBISLevel will get defined as if it is the finest one.
+     After that, it will be reconciled with finer levels if they exist.
+     1.  This is way simpler.
+     2.  This keeps me from having to touch some very old, very delicate code.
+     3.  Below AMR level 0,planning to just call the old EBISLeveel define function
 **/
 void
 EBIndexSpace::
@@ -429,16 +396,21 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
                      Vector< IntVectSet > *   a_tags_level)
 
 {
+
   CH_TIME("EBIndexSpace::refinedInSpaceDomain");
+  clear();
+  m_nCellMax = 32;
+  if (a_nCellMax > 0)
+  {
+    m_nCellMax = a_nCellMax;
+  }
   /**
-     This vector is in EB order, finest first, coarsest last.
-     It also includes boxes which are a coarsening of AMR level 0.
-     So this Vector will be longer (or at least as  long as) a_amr_domains.size()
-     This sets m_nCellMax and m_domainLevel
+     This vector is in AMR order, coarsest first, finest last
+     This does not include boxes which are a coarsening of AMR level 0.
   **/
-  Vector<DisjointBoxLayout> internal_layouts;
-  getRefinedInSpaceLayouts(internal_layouts,
-                           a_nCellMax,  
+  Vector<DisjointBoxLayout> amr_layouts;
+  Vector<Real>              amr_dx;
+  getRefinedInSpaceLayouts(amr_layouts,
                            a_maxCoarsenings,
                            a_use_eb_tags,
                            a_amr_domains,
@@ -446,45 +418,66 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
                            a_max_ghost_eb,
                            a_tags_level);
 
-  /**
-     Setting member data.
-     m_nCellMax and m_domainLevel were set in getRefinedInSpaceLayouts.
-  **/
-  m_distributedData = false;
-  m_nlevels = internal_layouts.size();
-  m_ebisLevel.resize(m_nlevels, NULL);
-  /**
-     Rather than follow exactly the old  dance that got m_ebisLevel  defined,
-     I will instead use a two step process for each EBISLevel.
-     Each EBISLevel will get defined as if it is the finest one.
-     After that, it will be reconciled with finer levels if they exist.
-     1.  This is way simpler.
-     2.  This keeps me from having to touch some very old, very delicate code.
-   **/
-  int n_amr_levels = a_amr_domains.size();
-  Real dx_lev = a_dx;
-  for(int eb_lev = 0; eb_lev < m_nlevels; eb_lev++)
+  for(int ilev = 1; ilev < amr_layouts.size(); ilev++)
   {
-    bool impose_dbl = true;
-    DisjointBoxLayout imposed_dbl = internal_layouts[eb_lev];
-    bool fixRegNextToCov = true;
+    amr_dx[ilev] = amr_dx[ilev-1]/Real(a_amr_ref_ratios[ilev-1]);
+  }
+
+  m_nlevels = 0;
+  m_distributedData = false;
+
+  //going backward through amr grids
+  int eb_lev = 0;
+  EBISLevel* ebisl_previous= NULL;
+  for(int ilev = amr_layouts.size()-1; ilev > -1 ; ilev--)
+  {
+
+    bool     fixRegNextToMV       = true;
+    EBISLevel* amr_ebisl_ptr      = NULL;
+    bool          impose_dbl      = true;
+    DisjointBoxLayout imposed_dbl = amr_layouts[ilev];
+    m_domainLevel.push_back(imposed_dbl.physDomain());
     //only do this jazz if we are at or above AMR level 0
-    if(eb_lev < n_amr_levels)
+    amr_ebisl_ptr  = new EBISLevel(m_domainLevel[ilev], a_origin, amr_dx[ilev], a_geoserver, m_nCellMax,
+                                   eb_lev, impose_dbl, imposed_dbl, fixRegNextToMV);
+    if(eb_lev > 0)
     {
-      m_ebisLevel[eb_lev] = new EBISLevel(m_domainLevel[eb_lev], a_origin, dx_lev, a_geoserver, m_nCellMax,
-                                          eb_lev, impose_dbl, imposed_dbl, fixRegNextToCov);
-      if(eb_lev > 0)
-      {
-        m_ebisLevel[eb_lev]->reconcileWithFinerLevel(*m_ebisLevel[eb_lev-1]);
-      }
-    } 
-    else  // here we are below amr level 0.  we know the domain is covered so we revert to the old way of doing stuff
-    {
-      m_ebisLevel[eb_lev] = new EBISLevel(*m_ebisLevel[eb_lev-1], a_geoserver, a_nCellMax,
-                                          impose_dbl, imposed_dbl, fixRegNextToCov);
+      amr_ebisl_ptr->reconcileWithFinerLevel(*ebisl_previous);
     }
-    dx_lev *= 2;
-  } //end loop over eb layouts
+    m_ebisLevel.push_back(amr_ebisl_ptr);
+    m_nlevels++;
+    eb_lev++;
+    ebisl_previous = amr_ebisl_ptr;
+  }
+  //now for stuff below amr level 0 I am trying to do this exactly as before.
+  ProblemDomain refbox = m_domainLevel[m_nlevels-1];
+  bool canref = (a_domain == refine(coarsen(a_domain,2), 2));
+  int fine_ebisl_index = m_ebisLevel.size() -1;
+  while (canref)
+  {
+    ProblemDomain refcoarbox = coarsen(refbox,2);
+    refcoarbox.refine(2);
+    if (refcoarbox != refbox)
+    {
+      canref = false;
+    }
+    else
+    {
+      bool impose_dbl = false;
+      DisjointBoxLayout imposed_dbl;
+      bool fixRegNextToMV= true;
+      EBISLevel* amr_ebisl_ptr  = new EBISLevel(*m_ebisLevel[fine_ebisl_index],
+                                                a_geoserver, m_nCellMax);
+
+      m_ebisLevel.push_back(amr_ebisl_ptr);
+
+      fine_ebisl_index++;
+      
+      m_nlevels++;
+      refbox.coarsen(2);
+    }
+  }
+
   m_isDefined = true;
 
 }
