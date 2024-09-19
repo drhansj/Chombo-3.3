@@ -371,11 +371,11 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_internal_layouts,
   ///Now for coarser grids (These are in the correct order)
   Vector<Vector<Box> > boxes_below_amr;
   Box finer_domain_box = a_amr_domains[0].domainBox();
-  while (finer_domain_box.coarsenable(4))
+  while (finer_domain_box.coarsenable(2))
   {
-    Box coarser_domain = finer_domain_box.coarsen(2);
+    Box coarser_domain_box = coarsen(finer_domain_box,2);
     Vector<Box> coarser_level;
-    domainSplit(coarser_domain, coarser_level, m_nCellMax, 1);
+    domainSplit(coarser_domain_box, coarser_level, m_nCellMax, 1);
     boxes_below_amr.push_back(coarser_level);
     finer_domain_box.coarsen(2);
   }
