@@ -418,6 +418,7 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
                            a_max_ghost_eb,
                            a_tags_level);
 
+  amr_dx.resize(amr_layouts.size(), a_dx);
   for(int ilev = 1; ilev < amr_layouts.size(); ilev++)
   {
     amr_dx[ilev] = amr_dx[ilev-1]/Real(a_amr_ref_ratios[ilev-1]);
@@ -449,10 +450,10 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
     eb_lev++;
     ebisl_previous = amr_ebisl_ptr;
   }
-  //now for stuff below amr level 0 I am trying to do this exactly as before.
+  //now for stuff below amr level 0 
   ProblemDomain refbox = m_domainLevel[m_nlevels-1];
   bool canref = (a_domain == refine(coarsen(a_domain,2), 2));
-  int fine_ebisl_index = m_ebisLevel.size() -1;
+  //eb_lev is still live
   while (canref)
   {
     ProblemDomain refcoarbox = coarsen(refbox,2);
@@ -466,14 +467,14 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
       bool impose_dbl = false;
       DisjointBoxLayout imposed_dbl;
       bool fixRegNextToMV= true;
-      EBISLevel* amr_ebisl_ptr  = new EBISLevel(*m_ebisLevel[fine_ebisl_index],
+      EBISLevel* amr_ebisl_ptr  = new EBISLevel(*m_ebisLevel[eb_lev-1],
                                                 a_geoserver, m_nCellMax);
 
+      ProblemDomain coar_dom = coarsen(m_domainLevel[eb_lev-1], 2);
       m_ebisLevel.push_back(amr_ebisl_ptr);
-
-      fine_ebisl_index++;
-      
+      m_domainLevel.push_back(coar_dom);
       m_nlevels++;
+      eb_lev++;
       refbox.coarsen(2);
     }
   }
