@@ -160,6 +160,11 @@ public:
   ///
   ~EBIndexSpace();
 
+  /// I just poached this from old an version of EBIS::buildFirstLevel for reuse --dtg
+  int
+  getNLevels(const ProblemDomain& a_finestDom,
+             const           int& a_maxCoarsenings) const;
+  
   ///
   /**
     Set a flag that indicates the data defining the EB is distributed.

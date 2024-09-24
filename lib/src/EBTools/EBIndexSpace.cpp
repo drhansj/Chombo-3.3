@@ -409,7 +409,6 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
      This does not include boxes which are a coarsening of AMR level 0.
   **/
   Vector<DisjointBoxLayout> amr_layouts;
-  Vector<Real>              amr_dx;
   getRefinedInSpaceLayouts(amr_layouts,
                            a_maxCoarsenings,
                            a_use_eb_tags,
@@ -418,65 +417,52 @@ refinedInSpaceDefine(const ProblemDomain    & a_domain,
                            a_max_ghost_eb,
                            a_tags_level);
 
-  amr_dx.resize(amr_layouts.size(), a_dx);
-  for(int ilev = 1; ilev < amr_layouts.size(); ilev++)
+  int max_amr_lev = amr_layouts.size() - 1;
+  if(a_amr_domains[max_amr_lev] != a_domain)
   {
-    amr_dx[ilev] = amr_dx[ilev-1]/Real(a_amr_ref_ratios[ilev-1]);
+    pout() << "EBIS::refinedInSpaceDefine: inconsistant layouts." << endl;
+    MayDay::Error();
+  }
+  m_nlevels = getNLevels(a_domain, a_maxCoarsenings);
+  m_domainLevel.resize(    m_nlevels, a_domain);
+  for(int ilev = 1; ilev < m_nlevels; ilev++)
+  {
+    m_domainLevel[ilev] = coarsen(m_domainLevel[ilev-1], 2);
   }
 
-  m_nlevels = 0;
   m_distributedData = false;
-
-  //going backward through amr grids
-  int eb_lev = 0;
-  EBISLevel* ebisl_previous= NULL;
-  for(int ilev = amr_layouts.size()-1; ilev > -1 ; ilev--)
+  Real dx_lev = a_dx;
+  const int finest_amr_level = amr_layouts.size() -1;
+  const bool  fixRegNextToMV       = true;
+  m_ebisLevel.resize(m_nlevels, NULL);
+  for(int eb_lev = 0; eb_lev < m_nlevels; eb_lev++)
   {
+    if(eb_lev < amr_layouts.size())
+    {
+      //remember that amr grids go coarsest first
+      int amr_index = finest_amr_level - eb_lev;
 
-    bool     fixRegNextToMV       = true;
-    EBISLevel* amr_ebisl_ptr      = NULL;
-    bool          impose_dbl      = true;
-    DisjointBoxLayout imposed_dbl = amr_layouts[ilev];
-    m_domainLevel.push_back(imposed_dbl.physDomain());
-    //only do this jazz if we are at or above AMR level 0
-    amr_ebisl_ptr  = new EBISLevel(m_domainLevel[ilev], a_origin, amr_dx[ilev], a_geoserver, m_nCellMax,
-                                   eb_lev, impose_dbl, imposed_dbl, fixRegNextToMV);
-    if(eb_lev > 0)
-    {
-      amr_ebisl_ptr->reconcileWithFinerLevel(*ebisl_previous);
-    }
-    m_ebisLevel.push_back(amr_ebisl_ptr);
-    m_nlevels++;
-    eb_lev++;
-    ebisl_previous = amr_ebisl_ptr;
-  }
-  //now for stuff below amr level 0 
-  ProblemDomain refbox = m_domainLevel[m_nlevels-1];
-  bool canref = (a_domain == refine(coarsen(a_domain,2), 2));
-  //eb_lev is still live
-  while (canref)
-  {
-    ProblemDomain refcoarbox = coarsen(refbox,2);
-    refcoarbox.refine(2);
-    if (refcoarbox != refbox)
-    {
-      canref = false;
+      bool          impose_dbl      = true;
+      DisjointBoxLayout imposed_dbl = amr_layouts[amr_index];
+
+      //only do this jazz if we are at or above AMR level 0
+      m_ebisLevel[eb_lev] =
+        new EBISLevel(m_domainLevel[eb_lev], a_origin, dx_lev, a_geoserver, m_nCellMax,
+                      eb_lev, impose_dbl, imposed_dbl, fixRegNextToMV);
+      if(eb_lev > 0)
+      {
+        m_ebisLevel[eb_lev]->reconcileWithFinerLevel(*m_ebisLevel[eb_lev-1]);
+      }
     }
     else
     {
+      ///below AMR, continue as we always have
       bool impose_dbl = false;
       DisjointBoxLayout imposed_dbl;
-      bool fixRegNextToMV= true;
-      EBISLevel* amr_ebisl_ptr  = new EBISLevel(*m_ebisLevel[eb_lev-1],
-                                                a_geoserver, m_nCellMax);
-
-      ProblemDomain coar_dom = coarsen(m_domainLevel[eb_lev-1], 2);
-      m_ebisLevel.push_back(amr_ebisl_ptr);
-      m_domainLevel.push_back(coar_dom);
-      m_nlevels++;
-      eb_lev++;
-      refbox.coarsen(2);
+      m_ebisLevel[eb_lev]  = new EBISLevel(*m_ebisLevel[eb_lev-1],
+                                           a_geoserver, m_nCellMax);
     }
+    dx_lev = 2.*dx_lev;
   }
 
   m_isDefined = true;
@@ -797,7 +783,40 @@ void EBIndexSpace::define(const ProblemDomain                        & a_entireD
     this->m_ebisLevel[0] = finestEBISLevel;
   }
 }
+/// just poached from old version of buildFirstLevel for reuse --dtg
+int
+EBIndexSpace::
+getNLevels(const ProblemDomain& a_finestDom,
+           const           int& a_maxCoarsenings) const
+{
+  ProblemDomain testDom = a_finestDom;
+  testDom.coarsen(2);   testDom.refine(2);
+  bool canref = (testDom == a_finestDom);
 
+  int ret_levels = 1;
+
+  ProblemDomain refbox = a_finestDom;
+  while (canref)
+  {
+    ProblemDomain refcoarbox = coarsen(refbox,2);
+    refcoarbox.refine(2);
+    if (refcoarbox != refbox)
+    {
+      canref = false;
+    }
+    else
+    {
+      refbox.coarsen(2);
+      ret_levels++;
+    }
+  }
+  if (a_maxCoarsenings != -1)
+  {
+    CH_assert(a_maxCoarsenings >= 0);
+    if (ret_levels > a_maxCoarsenings+1) ret_levels = a_maxCoarsenings + 1;
+  }
+  return ret_levels;
+}
 EBISLevel* EBIndexSpace::buildFirstLevel(const ProblemDomain&   a_domain,
                                          const RealVect&        a_origin,
                                          const Real&            a_dx,
@@ -811,31 +830,7 @@ EBISLevel* EBIndexSpace::buildFirstLevel(const ProblemDomain&   a_domain,
   m_isDefined = true;
   CH_assert(a_nCellMax > 0);
 
-  m_nlevels = 1;
-  bool canref = (a_domain == refine(coarsen(a_domain,2), 2));
-
-  CH_assert(!a_domain.isEmpty());
-  ProblemDomain refbox = a_domain;
-
-  while (canref)
-    {
-      ProblemDomain refcoarbox = coarsen(refbox,2);
-      refcoarbox.refine(2);
-      if (refcoarbox != refbox)
-        {
-          canref = false;
-        }
-      else
-        {
-          m_nlevels++;
-          refbox.coarsen(2);
-        }
-    }
-  if (a_maxCoarsenings != -1)
-    {
-      CH_assert(a_maxCoarsenings >= 0);
-      if (m_nlevels > a_maxCoarsenings+1) m_nlevels = a_maxCoarsenings + 1;
-    }
+  m_nlevels = getNLevels(a_domain, a_maxCoarsenings);
 
   m_ebisLevel.resize(m_nlevels, NULL);
   m_domainLevel.resize(m_nlevels);
@@ -970,13 +965,16 @@ int EBIndexSpace::getLevel(const ProblemDomain& a_domain) const
   bool found = false;
   int whichlev = -1;
   for (int ilev = 0; ilev < m_domainLevel.size() && !found; ilev++)
+  {
+    Box domLevelBox = m_domainLevel[ilev].domainBox();
+    Box inputDomBox =            a_domain.domainBox();
+      
+    if (domLevelBox == inputDomBox)
     {
-      if (m_domainLevel[ilev].domainBox() == a_domain.domainBox())
-        {
-          found = true;
-          whichlev = ilev;
-        }
+      found = true;
+      whichlev = ilev;
     }
+  }
   return whichlev;
 }
 
