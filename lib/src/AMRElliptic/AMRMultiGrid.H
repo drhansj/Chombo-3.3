@@ -950,7 +950,11 @@ void AMRMultiGrid<T>::solveNoInitResid(Vector<T*>& a_phi,  Vector<T*>& uberResid
      lowlim--;
   // for (int ilev = l_base; ilev <= l_max; ilev++)
   bool outputIntermediates = false;
-
+#ifndef NDEBUG
+  outputIntermediates = true;
+  int verbsave = m_verbosity;
+  m_verbosity = 4586;
+#endif
   for (int ilev = lowlim; ilev <= l_max; ilev++)
     { CH_TIME("uberCorrection");
       uberCorrection[ilev] = new T();
@@ -1118,6 +1122,10 @@ void AMRMultiGrid<T>::solveNoInitResid(Vector<T*>& a_phi,  Vector<T*>& uberResid
       m_op[i]->clear(*uberCorrection[i]);
       delete uberCorrection[i];
     }
+#ifndef NDEBUG
+  ///to avoid side effects
+  m_verbosity = verbsave;
+#endif
 }
 
 template<class T>
