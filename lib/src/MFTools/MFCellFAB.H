@@ -268,6 +268,9 @@ private:
 
   void operator=(const MFCellFAB& rhs); //unimplemented
 
+///begin debug (access for debugging reasons)
+public:  
+///end debug (access for debugging reasons)
   Vector<EBCellFAB*> m_phase;
   Box                m_box;
 
