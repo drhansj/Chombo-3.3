@@ -76,10 +76,14 @@ public:
 
   ///
   /**
-     Fancy new define where, for the AMR Levels > 0, 
+     Experimental  new define function where, 
+     for the AMR Levels >= 0, 
      internal data is only defined on grids
      by a Berger-Rigoutsos run using the input tags.
-     Internal data is defined everwhere at all levels.
+     If you use an EBIS defined this way for grids 
+     that do not match these tags, the copyTo operations 
+     that fillEBISLayout use will result in some of the
+     data being undefined.    
   **/
   void
   refinedInSpaceDefine(const ProblemDomain    & a_domainFinest,
