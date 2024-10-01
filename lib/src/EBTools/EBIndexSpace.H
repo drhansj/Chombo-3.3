@@ -55,11 +55,8 @@ public:
 
   ///
   /**
-      If a_ncellMax is set, that is the max width of
-      an internal grid.  Otherwise use defaults
-      of (16 in 3D, 64 in 2d)
-
-      This 
+     This define function calls wholeDomainDefine or 
+     refinedInSpaceDefine depending on a_use_eb_tags.
   */
   void
   define(const ProblemDomain  & a_domain,
@@ -102,6 +99,9 @@ public:
   /**
      Traditional EBIS define function.   
      Internal data is defined everwhere at all levels.
+     If a_ncellMax is set, that is the max width of
+     an internal grid.  Otherwise use defaults
+     of (16 in 3D, 64 in 2d).
   **/
   void
   wholeDomainRefinedDefine(const ProblemDomain    & a_domain,
