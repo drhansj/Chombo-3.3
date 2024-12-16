@@ -1097,6 +1097,8 @@ void AMRMultiGrid<T>::solveNoInitResid(Vector<T*>& a_phi,  Vector<T*>& uberResid
   //     pout() << "solver seems to have blown up" << endl;
   //     MayDay::Error("kaboom");
   //   }
+  pout() << "AMRMultiGrid: Final_residual  = " << rnorm <<   std::endl;;
+  pout() << "AMRMultiGrid: Final_iteration = " << iter  <<   std::endl;
   m_exitStatus = int(!goRedu) + int(!goIter)*2 + int(!goHang)*4 + int(!goNorm)*8;
   if (m_verbosity >= 2)
     {
