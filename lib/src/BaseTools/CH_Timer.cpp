@@ -695,6 +695,7 @@ void TraceTimer::reportOneTree(FILE* out, const TraceTimer& timer)
   fprintf(out,"---------------------------------------------------------\n");
 
   fprintf(out,"[%d]%s %.5f %lld", timer.m_rank, timer.m_name, floatTime, timer.m_count);
+  fprintf(out, "Total_Time = %7.4e\n", floatTime);
   if(f>0)
     fprintf(out, " f=%lld MFlop/s=%.0f", f, MFLOP);
 
