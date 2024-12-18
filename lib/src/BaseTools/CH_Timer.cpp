@@ -494,6 +494,7 @@ void TraceTimer::report(bool a_closeAfter)
       static int reportCount = 0;
       fprintf(out, "-----------\nTimer report %d (%d timers)\n--------------\n",
               reportCount, numCounters);
+      fprintf(out, "\nTotal_Time = %7.4e\n", floatTime);
       reportCount++;
       if (s_memorySampling) updateMemory(root);
       ListIterator<elem> it(tracerlist);
@@ -695,7 +696,6 @@ void TraceTimer::reportOneTree(FILE* out, const TraceTimer& timer)
   fprintf(out,"---------------------------------------------------------\n");
 
   fprintf(out,"[%d]%s %.5f %lld", timer.m_rank, timer.m_name, floatTime, timer.m_count);
-  fprintf(out, "\nTotal_Time = %7.4e\n", floatTime);
   if(f>0)
     fprintf(out, " f=%lld MFlop/s=%.0f", f, MFLOP);
 
