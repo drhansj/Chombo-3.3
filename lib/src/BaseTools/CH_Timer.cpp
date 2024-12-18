@@ -494,6 +494,8 @@ void TraceTimer::report(bool a_closeAfter)
       static int reportCount = 0;
       fprintf(out, "-----------\nTimer report %d (%d timers)\n--------------\n",
               reportCount, numCounters);
+      unsigned long long int time = root.m_accumulated_WCtime;
+      double floatTime = time*secondspertick;
       fprintf(out, "\nTotal_Time = %7.4e\n", floatTime);
       reportCount++;
       if (s_memorySampling) updateMemory(root);
