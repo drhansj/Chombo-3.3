@@ -1701,6 +1701,87 @@ void EBGraphImplem::coarsenVoFs(const EBGraphImplem& a_fineGraph,
       if (numCoarVoFs > numFineVoFs) MayDay::Error("Coarsening generated more VoFs");
     }
 }
+void EBGraphImplem::coarsenVoFsOddGrids(const EBGraphImplem& a_fineGraph,
+                                        const Box&           a_coarRegion)
+{
+  CH_TIME("EBGraphImplem::coarsenVoFs");
+
+  //this also defines the boxes
+  m_region = a_coarRegion;
+  m_domain = ebcoarsen(a_fineGraph.getDomain(), 2);
+  m_isDomainSet = true;
+  m_isDefined = true;
+  Box ref_region = ebrefine(m_region, 2);
+  ref_region &= a_fineGraph.getRegion();
+  if (a_fineGraph.isCovered(ref_region))
+  {
+    m_tag = AllCovered;
+  }
+  else if (a_fineGraph.isRegular(ref_region))
+  {
+    m_tag = AllRegular;
+  }
+  else
+  {
+    Box fineRegion = a_coarRegion;
+    fineRegion.refine(2);
+    int numFineVoFs = a_fineGraph.numVoFs(fineRegion);
+    int numCoarVoFs = 0;
+    m_tag = HasIrregular;
+    m_region = a_coarRegion;
+    m_domain = ebcoarsen(a_fineGraph.m_domain, 2);
+    if (m_irregIVS != NULL) delete m_irregIVS;
+    if (m_multiIVS != NULL) delete m_multiIVS;
+    m_multiIVS = new IntVectSet(DenseIntVectSet(m_region, false));
+    m_irregIVS = new IntVectSet(DenseIntVectSet(m_region, false));
+    m_graph.define(m_region, 1);
+    for (BoxIterator bit(m_region); bit.ok(); ++bit)
+    {
+      CH_TIME("EBGraphImplem::coarsenVoFs_BoxIterator");
+      bool blab = ((bit() == s_ivDebug) && (m_domain.domainBox() == s_doDebug));
+      blab = false;
+      Box fineBox = ebrefine(Box(bit(), bit()), 2);
+      fineBox &= a_fineGraph.getRegion();
+      if (a_fineGraph.isRegular(fineBox))
+      {
+        m_graph(bit(), 0).defineAsRegular();
+        if (blab)
+          pout() << s_ivDebug << " is regular" << endl;
+      }
+      else if (a_fineGraph.isCovered(fineBox))
+      {
+        m_graph(bit(), 0).defineAsCovered();
+        if (blab)
+          pout() << s_ivDebug << " is covered" << endl;
+      }
+      else
+      {
+        //get sets of all connected vofs in the box
+        //the number of sets will be the number of
+        //vofs in the coarse cell
+        if (blab)
+          pout() << s_ivDebug << " is covered" << endl;
+
+        Vector<Vector<VolIndex> > fineVoFSets
+          = a_fineGraph.getVoFSets(fineBox);
+
+        for (int iset = 0; iset < fineVoFSets.size(); iset++)
+        {
+          numCoarVoFs++;
+          GraphNodeImplem newImplem;
+          newImplem.m_finerNodes = fineVoFSets[iset];
+          m_graph(bit(), 0).addIrregularNode(newImplem);
+          (*m_irregIVS) |= bit();
+          if (m_graph(bit(), 0).size() > 1)
+          {
+            (*m_multiIVS) |= bit();
+          }
+        }
+      }
+    }
+    if (numCoarVoFs > numFineVoFs) MayDay::Error("Coarsening generated more VoFs");
+  }
+}
 
 /*******************************/
 Vector<Vector<VolIndex> >  EBGraphImplem::getVoFSets(const Box& a_region) const

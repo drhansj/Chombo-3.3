@@ -18,7 +18,7 @@
 #include "LayoutIterator.H"
 #include "BRMeshRefine.H"
 #include "AMRIO.H"
-
+#include "ParmParse.H"
 #include "EBCFCopy.H"
 #include "EBIndexSpace.H"
 #include "EBGraphFactory.H"
@@ -329,11 +329,14 @@ getRefinedInSpaceLayouts(Vector<DisjointBoxLayout>& a_amr_layouts,
 {
 
 
-  Real fill_ratio   = 1.0;
-  int  block_factor = 4;
-  int  buffer_size  = a_max_ghost_eb + 2;
+  ParmParse pp("EBIS_grids");
+  Real fill_ratio   = 0.7;
+  int  block_factor = 8;
+  int  buffer_size  = a_max_ghost_eb + 4;
   int  num_levels   = a_amr_domains.size();
-  
+  pp.query("fill_ratio", fill_ratio);
+  pp.query("block_fact", block_factor);
+  pp.query("tag_buffer", buffer_size);
   Vector< Vector < Box > > new_meshes(num_levels);
   if(num_levels > 1)
   {

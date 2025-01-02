@@ -281,6 +281,10 @@ public:
   //this must go first in coarsening.  defines happen here
   void coarsenVoFs(const EBGraphImplem&   a_fineGraph,
                    const Box& a_coarRegion);
+  //define vofs to be the coarsened vofs of the inputs
+  //this must go first in coarsening.  defines happen here
+  void coarsenVoFsOddGrids(const EBGraphImplem&   a_fineGraph,
+                           const Box& a_coarRegion);
 
   //define the faces to be the coarsened faces of the input
   void coarsenFaces(const EBGraphImplem& a_coarGhostGraph,
@@ -645,6 +649,9 @@ public:
   void coarsenVoFs(const EBGraph&   a_fineGraph,
                    const Box& a_coarRegion);
 
+  void coarsenVoFsOddGrids(const EBGraph&   a_fineGraph,
+                           const Box& a_coarRegion);
+  
   //define the faces to be the coarsened faces of the input
   void coarsenFaces(const EBGraph& a_coarGhostGraph,
                     const EBGraph& a_fineEBIS);
@@ -961,6 +968,13 @@ coarsenVoFs(const EBGraph& a_fineEBIS,
             const Box& a_coarRegion)
 {
   m_implem->coarsenVoFs(*a_fineEBIS.m_implem, a_coarRegion);
+}
+/*******************************/
+inline void EBGraph::
+coarsenVoFsOddGrids(const EBGraph& a_fineEBIS,
+                    const Box& a_coarRegion)
+{
+  m_implem->coarsenVoFsOddGrids(*a_fineEBIS.m_implem, a_coarRegion);
 }
 /*******************************/
 inline void EBGraph::

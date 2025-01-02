@@ -57,6 +57,7 @@ EBISLevel::
 reconcileWithFinerLevel(EBISLevel& a_finer_level)
 {
 
+  Interval interv(0, 0);
   /**
      Here is the setup:
      Both levels have been filled as if they were the finest one except for the m_level bit.
@@ -85,31 +86,50 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
   EBGraphFactory     ebgraphfactfine(a_finer_level.m_domain);
   EBGraphFactory     ebgraphfactcoar(              m_domain);
   EBGraphFactory     ebgraphfactcofi(              m_domain);
-  LevelData<EBGraph>& grapFine = a_finer_level.m_graph;
+  
+  int nghost =2;
   LevelData<EBGraph>& grapCoar =               m_graph;
-  LevelData<EBGraph>  grapCoFi(gridCoFi, 1, IntVect::Unit, ebgraphfactcofi);
+  LevelData<EBGraph>  grapFine(gridFine, 1, nghost*IntVect::Unit, ebgraphfactfine);
+  a_finer_level.m_graph.copyTo(interv, grapFine, interv);
+  LevelData<EBGraph>  grapCoFi(gridCoFi, 1, nghost*IntVect::Unit, ebgraphfactcofi);
   DataIterator ditFine = gridFine.dataIterator();
+  Box fine_dom_box = a_finer_level.m_domain.domainBox();
+  Box coar_dom_box = a_finer_level.m_domain.domainBox();
+  
+  pout() << "reconcileWithFiner: before graph coarsenVoFs " << endl;
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
-    grapCoFi[ditFine[ibox]].coarsenVoFs(grapFine[ditFine[ibox]], gridCoFi[ditFine[ibox]]);
+    auto & grap_cofi = grapCoFi[ditFine[ibox]];
+    auto & grap_fine = grapFine[ditFine[ibox]];
+    Box    grid_fine = gridFine[ditFine[ibox]];
+    Box    grid_cofi = gridCoFi[ditFine[ibox]];
+
+    grid_cofi.grow(nghost);
+    grid_cofi &= m_domain;
+    grap_cofi.coarsenVoFsOddGrids(grap_fine, grid_cofi);
   }
 
-
+  grapCoFi.exchange();
   //coarsenvof data stuff
   EBDataFactory ebdatafact;
   LevelData<EBData>  dataCoFi(gridCoFi,1, IntVect::Zero, ebdatafact);
   LevelData<EBData>& dataFine = a_finer_level.m_data;
   LevelData<EBData>& dataCoar =               m_data;
-  pout() << "reconcileWithFiner: before coarsenVoFs " << endl;
+  pout() << "reconcileWithFiner: before data coarsenVoFs " << endl;
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
-    dataCoFi[ditFine[ibox]].defineVoFData( grapCoFi[ditFine[ibox]], gridCoFi[ditFine[ibox]]);
-    dataCoFi[ditFine[ibox]].defineFaceData(grapCoFi[ditFine[ibox]], gridCoFi[ditFine[ibox]]);
+    auto & grap_cofi = grapCoFi[ditFine[ibox]];
+    auto & grap_fine = grapFine[ditFine[ibox]];
+    Box    grid_fine = gridFine[ditFine[ibox]];
+    Box    grid_cofi = gridCoFi[ditFine[ibox]];
+    
+    dataCoFi[ditFine[ibox]].defineVoFData( grap_cofi, grid_cofi);
+    dataCoFi[ditFine[ibox]].defineFaceData(grap_cofi, grid_cofi);
     dataCoFi[ditFine[ibox]].coarsenVoFs(dataFine[ditFine[ibox]],
-                                        grapFine[ditFine[ibox]],
-                                        grapCoFi[ditFine[ibox]],
-                                        gridCoFi[ditFine[ibox]]);
-                                    
+                                        grap_fine,
+                                        grap_cofi,
+                                        grid_cofi);
+
   }
 
 
@@ -118,19 +138,21 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
      Note: coarsenFaces goes through a lot of effort to avoid the member
      data having ghost cells.   Now I think I was being silly all those years ago 
      and the member data has ghost cells when this function is called.
-     dtg 9-13-2024
+     dtg 09-13-2024
+     Past me is owed an apology from present me.
+     dtg 12-20-2024
    **/
   pout() << "reconcileWithFiner: before coarsenFaces " << endl;
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
-    grapCoFi[ditFine[ibox]].coarsenFaces(grapCoFi[ditFine[ibox]], grapFine[ditFine[ibox]]);
+    grapCoFi[ditFine[ibox]].coarsenFaces(grapCoFi[ditFine[ibox]],
+                                         grapFine[ditFine[ibox]]);
     dataCoFi[ditFine[ibox]].coarsenFaces(dataCoFi[ditFine[ibox]],
                                          grapFine[ditFine[ibox]],
                                          grapCoFi[ditFine[ibox]],
                                          gridCoFi[ditFine[ibox]]);
   }
   
-  Interval interv(0, 0);
   grapCoFi.copyTo(interv, grapCoar, interv);
   dataCoFi.copyTo(interv, dataCoar, interv);
 
