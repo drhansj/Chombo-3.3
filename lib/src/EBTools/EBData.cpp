@@ -832,6 +832,7 @@ coarsenFaces(const EBDataImplem& a_fineEBDataImplem,
                   const FaceIndex& faceFine = facesFine[ifine];
                   IntVect loiv = faceFine.gridIndex(Side::Lo);
                   IntVect hiiv = faceFine.gridIndex(Side::Hi);
+
                   if ((fineRegion.contains(loiv) && a_fineGraph.isIrregular(loiv)) ||
                      (fineRegion.contains(hiiv) && a_fineGraph.isIrregular(hiiv)))
                     {
@@ -857,6 +858,74 @@ coarsenFaces(const EBDataImplem& a_fineEBDataImplem,
             } //end loop over faces
         } //end loop over face directions
     }
+}
+/*******************************/
+void EBDataImplem::
+coarsenFacesValidOnly(const EBDataImplem& a_fineEBDataImplem,
+                      const EBGraph&      a_fineGraph,
+                      const EBGraph&      a_coarGraph,
+                      const Box&          a_validRegion)
+{
+  CH_TIME("EBDataImplem::coarsenFacesValidOnly");
+  Box fine_valid = refine(a_validRegion, 2);
+  defineFaceData(a_coarGraph, a_validRegion);
+  IntVectSet ivsIrreg = a_coarGraph.getIrregCells(a_validRegion);
+  Box fineRegion = a_fineGraph.getRegion();
+  Box dom_fine = a_fineGraph.getDomain().domainBox();
+  Box dom_coar = a_fineGraph.getDomain().domainBox();
+  if (a_coarGraph.hasIrregular())
+  {
+    for (int faceDir = 0; faceDir < SpaceDim; faceDir++)
+    {
+      CH_TIME("EBDataImplem::coarsenFaces_faceDir");
+
+      FaceIterator faceit(ivsIrreg, a_coarGraph, faceDir,
+                          FaceStop::SurroundingWithBoundary);
+
+      for (faceit.reset(); faceit.ok(); ++faceit)
+      {
+        CH_TIME("EBDataImplem::coarsenFaces_FaceIterator");
+
+        const FaceIndex&  faceCoar  = faceit();
+        Vector<FaceIndex> facesFine = a_coarGraph.refine(faceCoar, a_fineGraph);
+
+        Vector<Real>     areaFracsFine(facesFine.size());
+        Vector<RealVect> centroidsFine(facesFine.size());
+        for (int ifine = 0; ifine < facesFine.size(); ifine++)
+        {
+          CH_TIME("EBDataImplem::coarsenFaces_fine");
+
+          const FaceIndex& faceFine = facesFine[ifine];
+          IntVect loiv = faceFine.gridIndex(Side::Lo);
+          IntVect hiiv = faceFine.gridIndex(Side::Hi);
+          bool attached_to_valid = ((    fine_valid.contains(loiv)) || (    fine_valid.contains(hiiv)));
+          bool attached_irreg_lo(dom_fine.contains(loiv) && (a_fineGraph.isIrregular(loiv)));
+          bool attached_irreg_hi(dom_fine.contains(hiiv) && (a_fineGraph.isIrregular(hiiv)));
+          bool attached_to_irreg = (attached_irreg_lo || attached_irreg_hi);
+          if(attached_to_valid && attached_to_irreg)
+          {
+            areaFracsFine[ifine] = a_fineEBDataImplem.areaFrac(faceFine);
+            centroidsFine[ifine] = a_fineEBDataImplem.centroid(faceFine);
+          }
+          else
+          {
+            areaFracsFine[ifine] = 1.0;
+            centroidsFine[ifine] = RealVect::Zero;
+          }
+        }
+        Real areaFracCoar;
+        RealVect centroidCoar;
+        coarsenAreaFrac(areaFracCoar, areaFracsFine);
+
+        coarsenFaceCentroid(centroidCoar, centroidsFine,
+                            areaFracsFine, facesFine,
+                            faceCoar);
+
+        m_faceData[faceDir](faceCoar, 0).m_areaFrac     = areaFracCoar;
+        m_faceData[faceDir](faceCoar, 0).m_faceCentroid = centroidCoar;
+      } //end loop over faces
+    } //end loop over face directions
+  }
 }
 /*******************************/
 void EBDataImplem::
@@ -1200,6 +1269,15 @@ coarsenFaces(const EBData& a_fineEBData,
              const Box&     a_validRegion)
 {
   m_implem->coarsenFaces(*a_fineEBData.m_implem, a_fineGraph, a_coarGraph, a_validRegion);
+}
+/*******************************/
+void EBData::
+coarsenFacesValidOnly(const EBData& a_fineEBData,
+                      const EBGraph& a_fineGraph,
+                      const EBGraph& a_coarGraph,
+                      const Box&     a_validRegion)
+{
+  m_implem->coarsenFacesValidOnly(*a_fineEBData.m_implem, a_fineGraph, a_coarGraph, a_validRegion);
 }
 /*******************************/
 EBData& EBData::operator=(const EBData& a_ebiin)

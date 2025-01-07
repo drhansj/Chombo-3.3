@@ -168,6 +168,12 @@ public:
                const EBGraph&      a_fineGraph,
                const EBGraph&      a_coarGraph,
                const Box&          a_validRegion);
+  
+  void
+  coarsenFacesValidOnly(const EBDataImplem& a_fineEBDataImplem,
+                        const EBGraph&      a_fineGraph,
+                        const EBGraph&      a_coarGraph,
+                        const Box&          a_validRegion);
   ///
   const Real& volFrac(const VolIndex& a_vof) const;
 
@@ -380,6 +386,11 @@ public:
                const EBGraph& a_fineGraph,
                const EBGraph& a_coarGraph,
                const Box&     a_validRegion);
+  void
+  coarsenFacesValidOnly(const EBData&  a_fineEBData,
+                        const EBGraph& a_fineGraph,
+                        const EBGraph& a_coarGraph,
+                        const Box&     a_validRegion);
   ///
   const Real& volFrac(const VolIndex& a_vof) const;
 

@@ -95,8 +95,10 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
   DataIterator ditFine = gridFine.dataIterator();
   Box fine_dom_box = a_finer_level.m_domain.domainBox();
   Box coar_dom_box = a_finer_level.m_domain.domainBox();
-  
+
   pout() << "reconcileWithFiner: before graph coarsenVoFs " << endl;
+  ///1.0     Coarsen meta data
+  ///    1.1 Coarsen VoF data
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
     auto & grap_cofi = grapCoFi[ditFine[ibox]];
@@ -108,14 +110,24 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
     grid_cofi &= m_domain;
     grap_cofi.coarsenVoFsOddGrids(grap_fine, grid_cofi);
   }
+  ///    1.1 Coarsen face data
+  pout() << "reconcileWithFiner: before EBG::coarsenFaces " << endl;
+  for(int ibox = 0; ibox < ditFine.size(); ibox++)
+  {
+    grapCoFi[ditFine[ibox]].coarsenFaces(grapCoFi[ditFine[ibox]],
+                                         grapFine[ditFine[ibox]]);
+  }
 
   grapCoFi.exchange();
-  //coarsenvof data stuff
+  ///at this point grapCoFi should be okay
+  
+
+  ///2.0  define moment data holder (EBData)
   EBDataFactory ebdatafact;
-  LevelData<EBData>  dataCoFi(gridCoFi,1, IntVect::Zero, ebdatafact);
+  LevelData<EBData>  dataCoFi(gridCoFi,1, IntVect::Unit, ebdatafact);
   LevelData<EBData>& dataFine = a_finer_level.m_data;
   LevelData<EBData>& dataCoar =               m_data;
-  pout() << "reconcileWithFiner: before data coarsenVoFs " << endl;
+  pout() << "reconcileWithFiner: before ebdata define " << endl;
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
     auto & grap_cofi = grapCoFi[ditFine[ibox]];
@@ -125,33 +137,30 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
     
     dataCoFi[ditFine[ibox]].defineVoFData( grap_cofi, grid_cofi);
     dataCoFi[ditFine[ibox]].defineFaceData(grap_cofi, grid_cofi);
-    dataCoFi[ditFine[ibox]].coarsenVoFs(dataFine[ditFine[ibox]],
-                                        grap_fine,
-                                        grap_cofi,
-                                        grid_cofi);
-
   }
-
-
-  /**
-     This bit is from EBISL::coarsenFaces
-     Note: coarsenFaces goes through a lot of effort to avoid the member
-     data having ghost cells.   Now I think I was being silly all those years ago 
-     and the member data has ghost cells when this function is called.
-     dtg 09-13-2024
-     Past me is owed an apology from present me.
-     dtg 12-20-2024
-   **/
-  pout() << "reconcileWithFiner: before coarsenFaces " << endl;
+  ///2.0 coarsen data from fine to cofi
+  pout() << "reconcileWithFiner: before coarsen data " << endl;
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
-    grapCoFi[ditFine[ibox]].coarsenFaces(grapCoFi[ditFine[ibox]],
-                                         grapFine[ditFine[ibox]]);
-    dataCoFi[ditFine[ibox]].coarsenFaces(dataCoFi[ditFine[ibox]],
-                                         grapFine[ditFine[ibox]],
-                                         grapCoFi[ditFine[ibox]],
-                                         gridCoFi[ditFine[ibox]]);
+    auto       & grap_cofi = grapCoFi[ditFine[ibox]];
+    auto       & grap_fine = grapFine[ditFine[ibox]];
+    Box          grid_cofi = gridCoFi[ditFine[ibox]];
+    Box          grid_fine = gridFine[ditFine[ibox]];
+    auto       & data_cofi = dataCoFi[ditFine[ibox]];
+    const auto & data_fine = dataFine[ditFine[ibox]];
+    data_cofi.coarsenVoFs(data_fine,
+                          grap_fine,
+                          grap_cofi,
+                          grid_cofi);
+
+    data_cofi.coarsenFacesValidOnly(data_fine,
+                                    grap_fine,
+                                    grap_cofi,
+                                    grid_cofi);
   }
+
+  dataCoFi.exchange();
+  ///at this point, dataCoFi should be okay in valid regions.
   
   grapCoFi.copyTo(interv, grapCoar, interv);
   dataCoFi.copyTo(interv, dataCoar, interv);
