@@ -114,8 +114,12 @@ reconcileWithFinerLevel(EBISLevel& a_finer_level)
   pout() << "reconcileWithFiner: before EBG::coarsenFaces " << endl;
   for(int ibox = 0; ibox < ditFine.size(); ibox++)
   {
-    grapCoFi[ditFine[ibox]].coarsenFaces(grapCoFi[ditFine[ibox]],
-                                         grapFine[ditFine[ibox]]);
+    Box validFine = gridFine[ditFine[ibox]];
+    Box validCoFi = gridCoFi[ditFine[ibox]];
+    grapCoFi[ditFine[ibox]].coarsenFacesOddGrids(grapCoFi[ditFine[ibox]],
+                                                 grapFine[ditFine[ibox]],
+                                                 validFine,
+                                                 validCoFi);
   }
 
   grapCoFi.exchange();

@@ -1967,6 +1967,48 @@ void EBGraphImplem::coarsenFaces(const EBGraphImplem& a_coarGhostGraph,
         }
     }
 }
+/*******************************/
+void EBGraphImplem::
+coarsenFacesOddGrids(const EBGraphImplem& a_coarGhostGraph,
+                     const EBGraphImplem& a_fineGraph,
+                     const Box          & a_validFine,
+                     const Box          & a_validCoFi)
+{
+  CH_TIME("EBGraphImplem::coarsenFaces_2");
+
+  if (hasIrregular())
+  {
+    CH_assert(a_coarGhostGraph.getDomain() == m_domain);
+    for (BoxIterator bit(a_validCoFi); bit.ok(); ++bit)
+    {
+      if (isIrregular(bit()))
+      {
+        Vector<VolIndex> vofsCoar = getVoFs(bit());
+        Vector<GraphNodeImplem>& nodes =
+          *(m_graph(bit(), 0).m_cellList);
+        for (int ivof = 0; ivof < vofsCoar.size(); ivof++)
+        {
+          const VolIndex& vofCoar= vofsCoar[ivof];
+          GraphNodeImplem& node = nodes[vofCoar.cellIndex()];
+          for (int idir = 0; idir < SpaceDim; idir++)
+          {
+            for (SideIterator sit; sit.ok(); ++sit)
+            {
+              Vector<int> coarArcs =
+                coarsenFaces(vofsCoar[ivof],
+                             a_coarGhostGraph,
+                             a_fineGraph,
+                             idir, sit());
+
+              int nodeind = IrregNode::index(idir, sit());
+              node.m_arc[nodeind] = coarArcs;
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 /*******************************/
 void EBGraphImplem::fixFineToCoarse(EBGraphImplem& a_fineGraph) const
