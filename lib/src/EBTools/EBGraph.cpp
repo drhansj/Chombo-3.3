@@ -840,7 +840,8 @@ bool EBGraphImplem::isAllRegular() const
 {
   return m_tag == AllRegular;
 }
-
+//standard linear in out size
+#if 0
 /*******************************/
 int EBGraphImplem::size(const Box&      a_region,
                         const Interval& a_comps) const
@@ -957,7 +958,244 @@ void EBGraphImplem::linearIn(void*           a_buf,
         }
     }
 }
+#else //new linearIn out size
+///more modern versions of the above
+/*******************************/
+size_t
+EBGraphImplem::
+getSerializedSize() const
+{
 
+  size_t char_siz = 0; //additive
+  const size_t box_size = 2*SpaceDim*sizeof(int);
+  ///Box m_region; 
+  char_siz += box_size;
+  ///ProblemDomain m_domain; 
+  char_siz += box_size;
+  ///TAG m_tag   //one more int
+  char_siz += sizeof(int);
+
+  if(m_tag == HasIrregular)
+  {
+    //   //std::cout << "EBGI::getSerialSize3: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    ///BaseFab<GraphNode> m_graph; 
+    ///first the box
+    char_siz += box_size;
+    ///now for the data
+    for(BoxIterator boxit(m_graph.box()); boxit.ok(); ++boxit)
+    {
+      //grapnode data
+      char_siz += m_graph(boxit(), 0).linearSize();
+    }
+    //std::cout << "EBGI:GSS after loop  char_siz = " << char_siz << endl;
+    
+    // //std::cout << "EBGI::getSerialSize2: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    ///IntVectSet* m_irregIVS;
+    size_t irr_size = m_irregIVS->linearSize();
+    char_siz += irr_size;
+    ///IntVectSet* m_multiIVS;
+    size_t mul_size = m_multiIVS->linearSize();
+    char_siz += mul_size;
+  } ///end if m_tag == hasIrregular
+
+  //std::cout << "EBGI::getSerialSize1: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+  //robert never uses themask stuff
+  if(m_isMaskBuilt)
+  {
+    MayDay::Error("EBGraphImplem::getSerialSize: who is using fortran masks here?");
+  }
+  
+  return char_siz;
+}
+
+/*******************************/
+void
+EBGraphImplem::
+energize(void*  a_buf,
+         size_t a_expected_size) const
+{
+  if(!m_isDefined)
+  {
+    MayDay::Error("EBGraphImplem::energize: m_isDefined cannot be false here");
+  }
+  if(!m_isDomainSet)
+  {
+    MayDay::Error("EBGraphImplem::energize: m_isDomainSet cannot be false here");
+  }
+  
+  const size_t box_size = 2*SpaceDim*sizeof(int);
+  size_t char_siz = 0; //additive
+  char*  char_buf = (char*) a_buf;
+  
+  ///Box m_region; -- hi and lo * dim
+  size_t region_size = linearSize(m_region);
+  //only checking this once
+  if(region_size != box_size)
+  {
+    MayDay::Error("EBGraphImplem::energize error: region_size is unexpected");
+  }
+  CH_XD::linearOut((void*)char_buf, m_region);
+  char_buf += box_size;
+  char_siz += box_size;
+  Box dom_box = m_domain.domainBox();
+  CH_XD::linearOut((void*) char_buf, dom_box);
+  char_buf += box_size;
+  char_siz += box_size;
+///m_tag
+  int  int_tag = (int )(m_tag);
+  int* int_buf = (int*)char_buf;
+  *int_buf = int_tag;
+  char_buf += sizeof(int);
+  char_siz += sizeof(int);
+
+  if(m_tag == HasIrregular)
+  {
+//    //std::cout << "EBGI::energize3: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    ///BaseFab<GraphNode> m_graph; 
+    ///first the box
+    Box graph_box = m_graph.box();
+    CH_XD::linearOut(char_buf, graph_box);
+    char_buf += box_size;
+    char_siz += box_size;
+    ///now for the data
+//    //std::cout << "EBGI::energize4: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    for(BoxIterator boxit(m_graph.box()); boxit.ok(); ++boxit)
+    {
+      //size of graphnode
+      int node_size = m_graph(boxit(), 0).linearSize();
+      //graphnode data
+      m_graph(boxit(), 0).linearOut(char_buf);
+      char_siz += node_size;
+      char_buf += node_size;
+    }
+
+    //std::cout << "EBGI:energize after loop char_siz = " << char_siz << endl;
+    
+    //  //std::cout << "EBGI::energize2: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    ///IntVectSet* m_irregIVS;
+    size_t irr_size = m_irregIVS->linearSize();
+    m_irregIVS->linearOut(char_buf);
+    char_siz += irr_size;
+    char_buf += irr_size;
+    ///IntVectSet* m_multiIVS;
+    m_multiIVS->linearOut(char_buf);
+    size_t mul_size = m_multiIVS->linearSize();
+    char_siz += mul_size;
+    char_buf += mul_size;
+  } ///end if m_tag == hasIrregular
+
+  //std::cout << "EBGI::energize1: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+  if(m_isMaskBuilt)
+  {
+    MayDay::Error("EBGraphImplem::linearOut: who is using fortran masks here?");
+  }
+
+  if(char_siz != a_expected_size)
+  {
+    MayDay::Error("EBGraphImplem::energize error: buffer size mismatch.");
+  }
+  return;
+}
+/*******************************/
+EBGraphImplem::
+EBGraphImplem(size_t    & a_serialized_size,
+              const void*  a_buf)
+{
+
+  const size_t box_size = 2*SpaceDim*sizeof(int);
+  size_t char_siz = 0; //additive
+  char*  char_buf = (char*) a_buf;
+  
+  CH_XD::linearIn(m_region, char_buf);
+  char_buf += box_size;
+  char_siz += box_size;
+  Box dom_box;
+  CH_XD::linearIn(dom_box, char_buf);
+  m_domain =  ProblemDomain(dom_box);
+  char_buf += box_size;
+  char_siz += box_size;
+
+///m_tag
+  int* int_buf = (int*)char_buf;
+  m_tag = (TAG)(*int_buf);
+  char_buf += sizeof(int);
+  char_siz += sizeof(int);
+
+  if(m_tag == HasIrregular)
+  {
+    //std::cout << "EBGI::EBGI3: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    ///BaseFab<GraphNode> m_graph; 
+    ///first the box
+    Box graph_box;
+    CH_XD::linearIn(graph_box, char_buf);
+    char_siz += box_size;
+    char_buf += box_size;
+    m_graph.define(graph_box, 1);
+    ///now for the data
+    for(BoxIterator boxit(m_graph.box()); boxit.ok(); ++boxit)
+    {
+      //graphnode data
+      m_graph(boxit(), 0).linearIn(char_buf);
+      //size of graphnode
+      int node_size = m_graph(boxit(), 0).linearSize();
+      char_siz += node_size;
+      char_buf += node_size;
+    }
+
+    
+    //std::cout << "EBGI::EBGI2: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+    ///IntVectSet* m_irregIVS;
+    m_irregIVS = new IntVectSet();
+    m_irregIVS->linearIn(char_buf);
+    size_t irr_size = m_irregIVS->linearSize();
+    char_siz += irr_size;
+    char_buf += irr_size;
+
+    ///IntVectSet* m_multiIVS;
+    m_multiIVS = new IntVectSet();
+    m_multiIVS->linearIn(char_buf);
+    size_t mul_size = m_multiIVS->linearSize();
+    char_siz += mul_size;
+    char_buf += mul_size;
+  } ///end if m_tag == hasIrregular
+  
+  //std::cout << "EBGI::EBGI1: m_region = " << m_region << ", char_siz = " << char_siz << endl;
+  m_isDefined   = true;
+  m_isDomainSet = true;
+  m_isMaskBuilt = false;
+  a_serialized_size = char_siz;  
+  return;
+} 
+/*******************************/
+int
+EBGraphImplem::
+size(const Box&      a_region,
+     const Interval& a_comps) const
+{
+  CH_assert(isDefined());
+  CH_assert(isDomainSet());
+  size_t serial_size = getSerializedSize();
+  return serial_size;
+}
+/*******************************/
+void EBGraphImplem::linearOut(void*           a_buf,
+                              const Box&      a_region,
+                              const Interval& a_comps) const
+{
+  size_t expected_size;
+  size_t serial_size = getSerializedSize();
+  energize(a_buf, serial_size);
+}
+/*******************************/
+void EBGraphImplem::linearIn(void*           a_buf,
+                             const Box&      a_region,
+                             const Interval& a_comps)
+{
+  size_t serial_size = 4586;
+  EBGraphImplem srcGraph(serial_size, a_buf);
+  copy(a_region, a_comps, a_region, srcGraph, a_comps);
+}
+#endif
 /*******************************/
 bool EBGraph::hasIrregular() const
 {

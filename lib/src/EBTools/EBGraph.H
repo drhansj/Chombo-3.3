@@ -263,6 +263,20 @@ public:
   ///
   void linearIn(void* buf, const Box& R, const Interval& comps);
 
+  ///more modern versions of the above
+  
+  ///get size of energized buffer
+  size_t getSerializedSize() const;
+
+  ///translate this object into  a serialized (pre-allocated)  buffer. expected size for checks
+  void energize(void*  a_buf,
+                size_t a_expeected_size) const;
+
+  ///create this object from an input serialized buffer  serialized size output for comparison
+  EBGraphImplem(size_t&      a_serialized_size,
+                const void*  a_buf);
+                
+  
   ///
   static int preAllocatable()
   {
