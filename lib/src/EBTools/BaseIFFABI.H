@@ -608,16 +608,11 @@ energize(void*  a_buf,
   char_buf += ivs_size;
   char_siz += ivs_size;
   
-  size_t graph_size_actual;
-  m_ebgraph.energize(char_buf, graph_size_actual);
+  size_t graph_size = m_ebgraph.getSerializedSize();
+  m_ebgraph.energize(char_buf, graph_size);
   
-  size_t graph_size_expected = m_ebgraph.getSerializedSize();
-  if(graph_size_expected != graph_size_actual)
-  {
-    MayDay::Error("BaseIVFAB:define(buf) error: graph size not up to expectations");
-  }
-  char_buf += graph_size_actual;
-  char_siz += graph_size_actual;
+  char_buf += graph_size;
+  char_siz += graph_size;
   
   linearListOut(char_buf, m_data);
   int list_size = linearListSize(m_data);
