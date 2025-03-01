@@ -117,22 +117,29 @@ BaseIFFAB<T>::define(const IntVectSet& a_ivsin,
                      const int& a_nvarin)
 {
   clear();
-  m_isDefined = true;
   CH_assert(a_nvarin > 0);
   CH_assert((a_direction >= 0) && (a_direction < SpaceDim));
-  const ProblemDomain& domain = a_ebgraph.getDomain();
   m_direction = a_direction;
   m_ivs = a_ivsin;
   m_ebgraph = a_ebgraph;
   m_nComp = a_nvarin;
-  Box minbox = a_ivsin.minBox();
+  defineDerived();
+}
+///needed to reuse this. --dtg 2-28-2025
+template <class T>
+void
+BaseIFFAB<T>::defineDerived()
+{
+  m_isDefined = true;
+  const ProblemDomain& domain = m_ebgraph.getDomain();
+  Box minbox = m_ivs.minBox();
   BaseFab<int> faceLocFab;
   BaseFab<bool> doneThat;
-  if (!a_ivsin.isEmpty())
+  if (!m_ivs.isEmpty())
     {
-      m_fab.resize(     surroundingNodes(minbox,a_direction), 1);
-      faceLocFab.resize(surroundingNodes(minbox,a_direction), 1);
-      doneThat.resize(  surroundingNodes(minbox,a_direction), 1);
+      m_fab.resize(     surroundingNodes(minbox,m_direction), 1);
+      faceLocFab.resize(surroundingNodes(minbox,m_direction), 1);
+      doneThat.resize(  surroundingNodes(minbox,m_direction), 1);
       faceLocFab.setVal(-1);
       m_fab.setVal(NULL);
       doneThat.setVal(false);
@@ -496,6 +503,159 @@ BaseIFFAB<T>::setDefaultValues()
   m_nComp = 0;
   m_direction = -1;
 }
+#if 1
+///begin more modern serialization
+///
+template <class T> inline
+int
+BaseIFFAB<T>::
+size(const Box& R, const Interval& comps) const
+{
+  size_t retsiz = getSerializedSize();
+  return (int) retsiz;
+}
+///
+template <class T> inline
+void
+BaseIFFAB<T>::
+linearOut(void* a_buf, const Box& R, const Interval& comps) const
+{
+  size_t expected_size = getSerializedSize();
+  char* char_buf = (char*)a_buf;
+  energize(char_buf, expected_size);
+  return;
+}
+///
+template <class T> inline
+void
+BaseIFFAB<T>::
+linearIn(void* a_buf, const Box& R, const Interval& comps)
+{
+  size_t actual_size;
+  char* char_buf = (char*) a_buf;
+  define(actual_size, char_buf);
+  size_t expected_size = getSerializedSize();
+  if(actual_size != expected_size)
+  {
+    MayDay::Error("BaseIFFAB::linearIn diverges from expectations");
+  }
+  return;
+}
+///define this object from the buffer
+template <class T> inline
+void
+BaseIFFAB<T>::
+define(size_t&      a_serialized_size,
+       const void*  a_buf)
+{
+  char*  char_buf = (char*) a_buf;
+  size_t char_siz = 0;
+  int* int_buf = (int *) char_buf;
+  m_nComp    = *int_buf; int_buf++;
+  m_nFaces   = *int_buf; int_buf++;
+  m_truesize = *int_buf; int_buf++; 
+  m_direction= *int_buf; int_buf++; 
+  char_buf += 4*sizeof(int);
+  char_siz += 4*sizeof(int);
+  
+  m_ivs.linearIn(char_buf);
+  size_t ivs_size = m_ivs.linearSize();
+  char_buf += ivs_size;
+  char_siz += ivs_size;
+  
+  size_t graph_size_actual;
+  m_ebgraph.define(graph_size_actual, char_buf);
+  size_t graph_size_expected = m_ebgraph.getSerializedSize();
+  if(graph_size_expected != graph_size_actual)
+  {
+    MayDay::Error("BaseIFFAB:define(buf) error: graph size not up to expectations");
+  }
+  char_buf += graph_size_actual;
+  char_siz += graph_size_actual;
+
+  defineDerived();
+
+  linearListIn(m_data, char_buf);
+  int list_size = linearListSize(m_data);
+  char_buf += list_size;
+  char_siz += list_size;
+
+  a_serialized_size = char_siz;
+
+  return;
+}
+
+///translate this object into a buffer
+template <class T> inline
+void
+BaseIFFAB<T>::
+energize(void*  a_buf,
+         size_t a_expected_size) const
+{
+  char*  char_buf = (char*) a_buf;
+  size_t char_siz = 0;
+
+  int* int_buf = (int *) char_buf;
+  *int_buf = m_nComp    ; int_buf++;
+  *int_buf = m_nFaces   ; int_buf++;
+  *int_buf = m_truesize ; int_buf++; 
+  *int_buf = m_direction; int_buf++; 
+  char_buf += 4*sizeof(int);
+  char_siz += 4*sizeof(int);
+  
+  m_ivs.linearOut(char_buf);
+  size_t ivs_size = m_ivs.linearSize();
+  char_buf += ivs_size;
+  char_siz += ivs_size;
+  
+  size_t graph_size_actual;
+  m_ebgraph.energize(char_buf, graph_size_actual);
+  
+  size_t graph_size_expected = m_ebgraph.getSerializedSize();
+  if(graph_size_expected != graph_size_actual)
+  {
+    MayDay::Error("BaseIVFAB:define(buf) error: graph size not up to expectations");
+  }
+  char_buf += graph_size_actual;
+  char_siz += graph_size_actual;
+  
+  linearListOut(char_buf, m_data);
+  int list_size = linearListSize(m_data);
+  char_buf += list_size;
+  char_siz += list_size;
+
+  if(a_expected_size != char_siz)
+  {
+    MayDay::Error("BaseIVFAB::define(buf) error: size mismatch overall");
+  }
+
+  return;
+}
+
+/// size of this object as a serial buffer
+template <class T> inline
+size_t
+BaseIFFAB<T>::
+getSerializedSize() const
+{
+  size_t char_siz = 0;
+
+  char_siz += 4*sizeof(int);
+  size_t ivs_size = m_ivs.linearSize();
+  char_siz += ivs_size;
+  
+  size_t graph_size = m_ebgraph.getSerializedSize();
+  char_siz += graph_size;
+  
+  int list_size = linearListSize(m_data);
+  char_siz += list_size;
+
+  return char_siz;
+}
+
+///end more modern serialization
+#else 
+///begin old school serialization
 /******************/
 template <class T> inline
 int BaseIFFAB<T>::size(const Box& a_region,
@@ -639,6 +799,9 @@ void BaseIFFAB<T>::linearIn(void* a_buf, const Box& a_region, const Interval& a_
         }
     }
 }
+///end old school serialization
+#endif
+
 /********************/
 /******************/
 

@@ -1094,6 +1094,8 @@ coarsenBndryCentroid(RealVect&               a_bndryCentroidCoar,
     }
 }
 /*******************************/
+//standard linear in out size
+#if 0
 int
 EBDataImplem::size(const Box& a_region, const Interval& a_comps) const
 {
@@ -1194,8 +1196,114 @@ EBDataImplem::linearIn(void*           a_buf,
       BaseIVFAB<VolData>::setVerboseDebug(false);
     }
 }
+#else
 /*******************************/
+//more modern serialzation routines
 /*******************************/
+void
+EBDataImplem::
+linearIn(void*           a_buf,
+         const Box&      a_region,
+         const Interval& a_comps)
+{
+  size_t serial_size = 4586;
+  EBDataImplem srcGraph(serial_size, a_buf);
+  copy(a_region, a_comps, a_region, srcGraph, a_comps);
+}
+/*******************************/
+void
+EBDataImplem::
+linearOut(void* a_buf,
+          const Box& a_region,
+          const Interval& a_comps) const
+
+{
+  size_t expected_size;
+  size_t serial_size = getSerializedSize();
+  energize(a_buf, serial_size);
+}
+/*******************************/
+int
+EBDataImplem::
+size(const Box& a_region,
+     const Interval& a_comps) const
+{
+  size_t serial_size = getSerializedSize();
+  return serial_size;
+}
+/*******************************/
+size_t
+EBDataImplem::
+getSerializedSize() const
+{
+  size_t char_siz = 0;
+  if((!m_isFaceDataDefined) || (!m_isVoFDataDefined))
+  {
+    MayDay::Error("EBDI::getSerializedSize error something not defined");
+  }
+  char_siz += m_volData.getSerializedSize();
+  for(int idir = 0; idir < SpaceDim; idir++)
+  {
+    char_siz += m_faceData[idir].getSerializedSize();
+  }
+  return char_siz;
+}
+/*******************************/
+void
+EBDataImplem::
+energize(void*  a_buf,
+         size_t a_expected_size) const
+{
+  size_t char_siz = 0;
+  char*  char_buf = (char*)a_buf;
+  if((!m_isFaceDataDefined) || (!m_isVoFDataDefined))
+  {
+    MayDay::Error("EBDI::getSerializedSize error something not defined");
+  }
+  size_t vol_size = m_volData.getSerializedSize();
+  m_volData.energize(char_buf, vol_size);
+  char_siz += vol_size;
+  char_buf += vol_size;
+  
+  for(int idir = 0; idir < SpaceDim; idir++)
+  {
+    size_t fac_size = m_faceData[idir].getSerializedSize();
+    m_faceData[idir].energize(char_buf, fac_size);
+    char_siz += fac_size;
+    char_buf += fac_size;
+  }
+  if(char_siz != a_expected_size)
+  {
+    MayDay::Error("EBDataImplem::energize error: buffer size mismatch");
+  }
+}
+
+///create this object from an input serialized buffer  serialized size output for comparison
+EBDataImplem::
+EBDataImplem(size_t&      a_serialized_size,
+             const void*  a_buf)
+{
+  size_t char_siz = 0;
+  char*  char_buf = (char*)a_buf;
+  m_isFaceDataDefined = true;
+  m_isVoFDataDefined  = true;
+  size_t vol_size;
+  m_volData.define(vol_size, char_buf);
+  char_siz += vol_size;
+  char_buf += vol_size;
+ 
+  for(int idir = 0; idir < SpaceDim; idir++)
+  {
+    size_t fac_size;
+    m_faceData[idir].define(fac_size, char_buf);
+    char_siz += fac_size;
+    char_buf += fac_size;
+  }
+  a_serialized_size = char_siz;
+}
+
+//end section for more modern serialization 
+#endif
 /*******************************/
 /************************/
 EBData::

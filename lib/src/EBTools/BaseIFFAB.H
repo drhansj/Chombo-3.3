@@ -218,17 +218,35 @@ public:
 protected:
   static bool  s_doSurroundingNodeSemantic;
   //T* m_data;
-  Vector<T> m_data;
-  int m_truesize;
   int m_nComp;
   int m_nFaces;
+  int m_truesize;
   int m_direction;
+  IntVectSet m_ivs;
+  EBGraph m_ebgraph;
+  
+  Vector<T> m_data;
 
   //object to store pointers to facilitate fast indexing
   BaseFab<T*> m_fab;
-  IntVectSet m_ivs;
-  EBGraph m_ebgraph;
   bool m_isDefined;
+  /** Begin more modern serialization **/
+
+  ///define this object from the buffer
+public:
+  void defineDerived();
+  
+  void define(size_t&      a_serialized_size,
+              const void*  a_buf);
+
+  ///translate this object into a buffer
+  void energize(void*  a_buf,
+                size_t a_expeected_size) const;
+
+  /// size of this object as a serial buffer
+  size_t getSerializedSize() const;
+
+  /** End more modern serialization **/
 private:
   //we disallow copy construction and assigment for data holders
   void operator= (const BaseIFFAB<T>&)

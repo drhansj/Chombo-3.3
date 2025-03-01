@@ -239,11 +239,28 @@ public:
   }
   static bool s_verboseDebug;
 
-private:
+public:
+  /** Begin more modern serialization **/
 
+  ///define this object from the buffer
+  void define(size_t&      a_serialized_size,
+              const void*  a_buf);
+
+  ///translate this object into a buffer
+  void energize(void*  a_buf,
+                size_t a_expeected_size) const;
+
+  /// size of this object as a serial buffer
+  size_t getSerializedSize() const;
+
+   
+  /** End more modern serialization **/
+  
 
 protected:
 
+  void defineDerived();
+  
   virtual void
   setDefaultValues();
 
@@ -255,10 +272,10 @@ protected:
   int m_nVoFs;
 
   EBGraph m_ebgraph;
+  IntVectSet m_ivs;
 
   //object to store pointers to facilitate fast indexing
   BaseFab<T*> m_fab;
-  IntVectSet m_ivs;
   bool m_isDefined;
 
   static bool s_verbose;

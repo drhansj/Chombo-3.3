@@ -1099,7 +1099,15 @@ energize(void*  a_buf,
 /*******************************/
 EBGraphImplem::
 EBGraphImplem(size_t    & a_serialized_size,
-              const void*  a_buf)
+              const void* a_buf)
+{
+  define(a_serialized_size, a_buf);
+}
+/*******************************/
+void
+EBGraphImplem::
+define(size_t    & a_serialized_size,
+       const void* a_buf)
 {
 
   const size_t box_size = 2*SpaceDim*sizeof(int);

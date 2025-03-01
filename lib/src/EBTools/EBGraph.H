@@ -276,7 +276,9 @@ public:
   EBGraphImplem(size_t&      a_serialized_size,
                 const void*  a_buf);
                 
-  
+  void define(size_t&      a_serialized_size,
+              const void*  a_buf);
+
   ///
   static int preAllocatable()
   {
@@ -743,6 +745,23 @@ public:
   /// pointer comparison
   bool operator<(const EBGraph& a_ebiin) const;
 
+  void define(size_t&      a_serialized_size,
+              const void*  a_buf)
+  {
+    return m_implem->define(a_serialized_size, a_buf);
+  }
+  ///get size of energized buffer
+  size_t getSerializedSize() const
+  {
+    return m_implem->getSerializedSize();
+  }
+
+  ///translate this object into  a serialized (pre-allocated)  buffer. expected size for checks
+  void energize(void*  a_buf,
+                size_t a_expected_size) const
+  {
+    return m_implem->energize(a_buf, a_expected_size);
+  }
   ///
   /**
      This stuff required by LevelData in parallel:

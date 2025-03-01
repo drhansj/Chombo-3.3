@@ -141,6 +141,21 @@ public:
             const EBDataImplem&   a_source,
             const Interval& a_Cs);
 
+  /** Begin more modern serialization **/
+
+  ///define this object from the buffer
+  EBDataImplem(size_t&      a_serialized_size,
+               const void*  a_buf);
+
+  ///translate this object into a buffer
+  void energize(void*  a_buf,
+                size_t a_expeected_size) const;
+
+  /// size of this object as a serial buffer
+  size_t getSerializedSize() const;
+
+  /** End more modern serialization **/
+  
   /// each data holder is defined over the irregular cells of the graph
   void
   defineVoFData(const EBGraph& a_graph, const Box& a_region);

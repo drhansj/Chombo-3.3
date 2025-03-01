@@ -84,43 +84,46 @@ BaseIVFAB<T>::define(const IntVectSet& a_ivsin,
                      const int&        a_nvarin)
 {
   clear();
-  m_isDefined = true;
   CH_assert(a_nvarin > 0);
 
   m_ivs = a_ivsin;
   m_nComp = a_nvarin;
   m_ebgraph = a_ebGraph;
   m_nVoFs = 0;
-
-  if (!a_ivsin.isEmpty())
+  defineDerived();
+}
+///separated out so I can call it separately
+template <class T>
+void
+BaseIVFAB<T>::
+defineDerived()
+{
+  m_isDefined = true;
+  if (!m_ivs.isEmpty())
+  {
+    //figure out how long vector has to be
+    IVSIterator ivsit(m_ivs);
+    for (ivsit.reset(); ivsit.ok(); ++ivsit)
     {
-      Box minbox = a_ivsin.minBox();
-      m_fab.resize(minbox, 1);
-      m_fab.setVal(NULL);
-
-      //figure out how long vector has to be
-      IVSIterator ivsit(m_ivs);
-      for (ivsit.reset(); ivsit.ok(); ++ivsit)
-        {
-          m_nVoFs += m_ebgraph.numVoFs(ivsit());
-        }
-      //now allocate the vector set the fab to go into
-      //the pool of data at the first component of the first
-      //vof
-      if (m_nVoFs > 0)
-        {
-          // Note: clear() was called above so this isn't a memory leak
-          //m_data = new T[m_nVoFs*m_nComp];
-          m_data.resize(m_nVoFs*m_nComp);
-          T* currentLoc = &m_data[0];
-          for (ivsit.reset(); ivsit.ok(); ++ivsit)
-            {
-              int numVoFs = m_ebgraph.numVoFs(ivsit());
-              m_fab(ivsit(), 0) = currentLoc;
-              currentLoc += numVoFs;
-            }
-        }
+      m_nVoFs += m_ebgraph.numVoFs(ivsit());
     }
+    //now allocate the vector set the fab to go into
+    //the pool of data at the first component of the first
+    //vof
+    if (m_nVoFs > 0)
+    {
+      // Note: clear() was called above so this isn't a memory leak
+      //m_data = new T[m_nVoFs*m_nComp];
+      m_data.resize(m_nVoFs*m_nComp);
+      T* currentLoc = &m_data[0];
+      for (ivsit.reset(); ivsit.ok(); ++ivsit)
+      {
+        int numVoFs = m_ebgraph.numVoFs(ivsit());
+        m_fab(ivsit(), 0) = currentLoc;
+        currentLoc += numVoFs;
+      }
+    }
+  }
 }
 /******************/
 template <class T> inline
@@ -211,6 +214,9 @@ BaseIVFAB<T>::copy(const Box& a_fromBox,
         }
     }
 }
+#if 0
+/******************/
+//old serialization code.
 /******************/
 template <class T> inline
 int BaseIVFAB<T>::size(const Box& a_region,
@@ -331,6 +337,155 @@ void BaseIVFAB<T>::linearIn(void* a_buf, const Box& a_region, const Interval& a_
         }
     }
 }
+#else
+  /** Begin more modern serialization **/
+
+///
+template <class T> inline
+int
+BaseIVFAB<T>::
+size(const Box& R, const Interval& comps) const
+{
+  size_t retsiz = getSerializedSize();
+  return (int) retsiz;
+}
+///
+template <class T> inline
+void
+BaseIVFAB<T>::
+linearOut(void* a_buf, const Box& R, const Interval& comps) const
+{
+  size_t expected_size = getSerializedSize();
+  char* char_buf = (char*)a_buf;
+  energize(char_buf, expected_size);
+  return;
+}
+///
+template <class T> inline
+void
+BaseIVFAB<T>::
+linearIn(void* a_buf, const Box& R, const Interval& comps)
+{
+  size_t actual_size;
+  char* char_buf = (char*) a_buf;
+  define(actual_size, char_buf);
+  size_t expected_size = getSerializedSize();
+  if(actual_size != expected_size)
+  {
+    MayDay::Error("BaseIVFAB::linearIn diverges from expectations");
+  }
+  return;
+}
+///define this object from the buffer
+template <class T> inline
+void
+BaseIVFAB<T>::
+define(size_t&      a_serialized_size,
+       const void*  a_buf)
+{
+  char*  char_buf = (char*) a_buf;
+  size_t char_siz = 0;
+  int* int_buf = (int*) char_buf;
+  m_nComp = *int_buf; int_buf++;
+  m_nVoFs = *int_buf; int_buf++;
+  char_buf += 2*sizeof(int);
+  char_siz += 2*sizeof(int);
+
+  m_ivs.linearIn(char_buf);
+  size_t ivs_size = m_ivs.linearSize();
+  char_buf += ivs_size;
+  char_siz += ivs_size;
+  
+  size_t graph_size_actual;
+  m_ebgraph.define(graph_size_actual, char_buf);
+  size_t graph_size_expected = m_ebgraph.getSerializedSize();
+  if(graph_size_expected != graph_size_actual)
+  {
+    MayDay::Error("BaseIVFAB:define(buf) error: graph size not up to expectations");
+  }
+  char_buf += graph_size_actual;
+  char_siz += graph_size_actual;
+  
+  defineDerived();
+  linearListIn(m_data, char_buf);
+  int list_size = linearListSize(m_data);
+  char_buf += list_size;
+  char_siz += list_size;
+
+  a_serialized_size = char_siz;
+
+  return;
+}
+
+///translate this object into a buffer
+template <class T> inline
+void
+BaseIVFAB<T>::
+energize(void*  a_buf,
+         size_t a_expected_size) const
+{
+  char*  char_buf = (char*) a_buf;
+  size_t char_siz = 0;
+
+  int* int_buf = (int*) char_buf;
+  *int_buf = m_nComp; int_buf++;
+  *int_buf = m_nVoFs; int_buf++;
+  char_buf += 2*sizeof(int);
+  char_siz += 2*sizeof(int);
+
+  m_ivs.linearOut(char_buf);
+  size_t ivs_size = m_ivs.linearSize();
+  char_buf += ivs_size;
+  char_siz += ivs_size;
+  
+  size_t graph_size_actual;
+  m_ebgraph.energize(char_buf, graph_size_actual);
+  
+  size_t graph_size_expected = m_ebgraph.getSerializedSize();
+  if(graph_size_expected != graph_size_actual)
+  {
+    MayDay::Error("BaseIVFAB:define(buf) error: graph size not up to expectations");
+  }
+  char_buf += graph_size_actual;
+  char_siz += graph_size_actual;
+  
+  linearListOut(char_buf, m_data);
+  int list_size = linearListSize(m_data);
+  char_buf += list_size;
+  char_siz += list_size;
+
+  if(a_expected_size != char_siz)
+  {
+    MayDay::Error("BaseIVFAB::define(buf) error: size mismatch overall");
+  }
+
+  return;
+}
+
+/// size of this object as a serial buffer
+template <class T> inline
+size_t
+BaseIVFAB<T>::
+getSerializedSize() const
+{
+  size_t char_siz = 0;
+  char_siz += 2*sizeof(int);
+
+  size_t ivs_size = m_ivs.linearSize();
+  char_siz += ivs_size;
+  
+  size_t graph_size = m_ebgraph.getSerializedSize();
+  char_siz += graph_size;
+
+  int list_size = linearListSize(m_data);
+  char_siz += list_size;
+
+  return char_siz;
+}
+
+/** End more modern serialization **/
+#endif  //serialization
+
 /********************/
 template <class T> inline
 T*
