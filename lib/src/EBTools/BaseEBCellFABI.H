@@ -162,6 +162,7 @@ int
 BaseEBCellFAB<T>::size(const Box& R, const Interval& comps) const
 {
   CH_TIME("BaseEBCellFAB::size");
+  CH_assert(m_ebisBox.getRegion().contains(m_region));
   int retval =  m_regFAB.size(R, comps);
   retval += m_irrFAB.size(R, comps);
   return retval;
@@ -175,6 +176,7 @@ BaseEBCellFAB<T>::linearOut(void* buf, const Box& R, const Interval& comps)
 {
   CH_TIME("BaseEBCellFAB::linearOut");
   unsigned char* buffer = (unsigned char*)buf;
+  CH_assert(m_ebisBox.getRegion().contains(m_region));
   m_regFAB.linearOut(buffer, R, comps);
   buffer+= m_regFAB.size(R, comps);
   m_irrFAB.linearOut(buffer, R, comps);
@@ -186,6 +188,8 @@ void
 BaseEBCellFAB<T>::linearIn(void* buf, const Box& R, const Interval& comps)
 {
   CH_TIME("BaseEBCellFAB::linearIn");
+
+  CH_assert(m_ebisBox.getRegion().contains(m_region));
   unsigned char* buffer = (unsigned char*)buf;
   m_regFAB.linearIn(buffer, R, comps);
   buffer+= m_regFAB.size(R, comps);

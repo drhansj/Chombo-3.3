@@ -1023,24 +1023,19 @@ energize(void*  a_buf,
     MayDay::Error("EBGraphImplem::energize: m_isDomainSet cannot be false here");
   }
   
-  const size_t box_size = 2*SpaceDim*sizeof(int);
   size_t char_siz = 0; //additive
   char*  char_buf = (char*) a_buf;
   
   ///Box m_region; -- hi and lo * dim
   size_t region_size = linearSize(m_region);
-  //only checking this once
-  if(region_size != box_size)
-  {
-    MayDay::Error("EBGraphImplem::energize error: region_size is unexpected");
-  }
+
   CH_XD::linearOut((void*)char_buf, m_region);
-  char_buf += box_size;
-  char_siz += box_size;
+  char_buf += region_size;
+  char_siz += region_size;
   Box dom_box = m_domain.domainBox();
   CH_XD::linearOut((void*) char_buf, dom_box);
-  char_buf += box_size;
-  char_siz += box_size;
+  char_buf += region_size;
+  char_siz += region_size;
 ///m_tag
   int  int_tag = (int )(m_tag);
   int* int_buf = (int*)char_buf;
@@ -1055,8 +1050,8 @@ energize(void*  a_buf,
     ///first the box
     Box graph_box = m_graph.box();
     CH_XD::linearOut(char_buf, graph_box);
-    char_buf += box_size;
-    char_siz += box_size;
+    char_buf += region_size;
+    char_siz += region_size;
     ///now for the data
 //    //std::cout << "EBGI::energize4: m_region = " << m_region << ", char_siz = " << char_siz << endl;
     for(BoxIterator boxit(m_graph.box()); boxit.ok(); ++boxit)
@@ -1101,6 +1096,9 @@ EBGraphImplem::
 EBGraphImplem(size_t    & a_serialized_size,
               const void* a_buf)
 {
+  ///from the days before shared_ptr
+  m_irregIVS = NULL;
+  m_multiIVS = NULL;
   define(a_serialized_size, a_buf);
 }
 /*******************************/
@@ -1122,6 +1120,10 @@ define(size_t    & a_serialized_size,
   m_domain =  ProblemDomain(dom_box);
   char_buf += box_size;
   char_siz += box_size;
+  //this is how it was done back in the day. I no longer understand why
+  //this initializes internal stuff to all regular.
+  //it also deletes any existing ptrs to IVS.    
+  define(m_region);
 
 ///m_tag
   int* int_buf = (int*)char_buf;
@@ -1129,7 +1131,22 @@ define(size_t    & a_serialized_size,
   char_buf += sizeof(int);
   char_siz += sizeof(int);
 
-  if(m_tag == HasIrregular)
+  /**
+     Some of these flags need to be set because of aforementioned old days.
+     They also are correct at this point.
+  **/
+  m_isDefined   = true;
+  m_isDomainSet = true;
+  m_isMaskBuilt = false;
+  if(m_tag == AllRegular)
+  {
+    setToAllRegular();
+  }
+  else if(m_tag == AllCovered)
+  {
+    setToAllCovered();
+  }
+  else if(m_tag == HasIrregular)
   {
     //std::cout << "EBGI::EBGI3: m_region = " << m_region << ", char_siz = " << char_siz << endl;
     ///BaseFab<GraphNode> m_graph; 
@@ -1150,9 +1167,9 @@ define(size_t    & a_serialized_size,
       char_buf += node_size;
     }
 
-    
-    //std::cout << "EBGI::EBGI2: m_region = " << m_region << ", char_siz = " << char_siz << endl;
     ///IntVectSet* m_irregIVS;
+    // the memory management was done in define(a_box)
+    CH_assert(m_irregIVS == NULL);
     m_irregIVS = new IntVectSet();
     m_irregIVS->linearIn(char_buf);
     size_t irr_size = m_irregIVS->linearSize();
@@ -1160,6 +1177,8 @@ define(size_t    & a_serialized_size,
     char_buf += irr_size;
 
     ///IntVectSet* m_multiIVS;
+    // the memory management was done in define(a_box)
+    CH_assert(m_multiIVS == NULL);
     m_multiIVS = new IntVectSet();
     m_multiIVS->linearIn(char_buf);
     size_t mul_size = m_multiIVS->linearSize();
@@ -1167,10 +1186,6 @@ define(size_t    & a_serialized_size,
     char_buf += mul_size;
   } ///end if m_tag == hasIrregular
   
-  //std::cout << "EBGI::EBGI1: m_region = " << m_region << ", char_siz = " << char_siz << endl;
-  m_isDefined   = true;
-  m_isDomainSet = true;
-  m_isMaskBuilt = false;
   a_serialized_size = char_siz;  
   return;
 } 
@@ -1190,7 +1205,7 @@ void EBGraphImplem::linearOut(void*           a_buf,
                               const Box&      a_region,
                               const Interval& a_comps) const
 {
-  size_t expected_size;
+
   size_t serial_size = getSerializedSize();
   energize(a_buf, serial_size);
 }
@@ -1199,8 +1214,13 @@ void EBGraphImplem::linearIn(void*           a_buf,
                              const Box&      a_region,
                              const Interval& a_comps)
 {
-  size_t serial_size = 4586;
-  EBGraphImplem srcGraph(serial_size, a_buf);
+  size_t serial_size_actual = 4586;
+  EBGraphImplem srcGraph(serial_size_actual, a_buf);
+  size_t serial_size_expected = srcGraph.getSerializedSize();
+  if(serial_size_expected != serial_size_actual)
+  {
+    MayDay::Error("EBGraphImplem::linearIn: buffer size mismatch");
+  }
   copy(a_region, a_comps, a_region, srcGraph, a_comps);
 }
 #endif
